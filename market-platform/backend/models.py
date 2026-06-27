@@ -45,6 +45,7 @@ class StockFeature(Base):
     volume_ratio = Column(Float)
     stock_vs_sector = Column(Float)
     stock_vs_nifty = Column(Float)
+    volatility = Column(Float)
 
 class OpportunityScore(Base):
     __tablename__ = "opportunity_scores"

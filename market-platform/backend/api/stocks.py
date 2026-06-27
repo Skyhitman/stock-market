@@ -106,6 +106,8 @@ def get_market_screener(db: Session = Depends(get_db)):
             "return_pct": round(ret_pct, 2),
             "rsi": round(f.rsi, 1) if f and f.rsi else 0,
             "macd": round(f.macd, 2) if f and f.macd else 0,
+            "atr": round(f.atr, 2) if f and f.atr else 0,
+            "volatility": round(f.volatility, 4) if f and getattr(f, 'volatility', None) else 0,
             "date": data_info["trading_date"],
             "last_updated": data_info["last_updated"],
         })

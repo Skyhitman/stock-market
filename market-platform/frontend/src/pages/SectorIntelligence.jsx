@@ -1,13 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, TrendingUp, TrendingDown, RotateCw, Bookmark } from 'lucide-react';
+import { TrendingUp, TrendingDown, Shield } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import { motion } from 'framer-motion';
 import { fetchSectorRankings, fetchSectorHistory } from '../api/client';
+import GlassCard from '../components/GlassCard';
+import { HoloLoader, StatusIndicator } from '../components/HUDElements';
 
 const SECTOR_COLORS = {
   Banking: '#3b82f6',
   Pharma: '#10b981',
   IT: '#f59e0b',
   Energy: '#ef4444',
+  FMCG: '#a855f7',
+  Auto: '#ec4899',
+  Metals: '#00f0ff'
 };
 
 export default function SectorIntelligence({ lastRefresh }) {
@@ -19,122 +25,124 @@ export default function SectorIntelligence({ lastRefresh }) {
     Promise.all([fetchSectorRankings(), fetchSectorHistory(30)])
       .then(([rankData, histData]) => {
         setSectors(rankData);
-        setHistory(histData);
+        setHistory(histData.length > 0 ? histData : []);
         setLoading(false);
       })
       .catch(err => { console.error(err); setLoading(false); });
   }, [lastRefresh]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="animate-spin text-blue-500" size={40} />
-      </div>
-    );
-  }
-
-  const sorted = [...sectors].sort((a, b) => (b.strength_score || b.score || 0) - (a.strength_score || a.score || 0));
+  if (loading) return <HoloLoader />;
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-3xl font-bold text-white flex items-center gap-2">
-          <span className="w-1 h-8 bg-blue-500 rounded-full inline-block" />
-          Sector Intelligence
+    <div className="space-y-6">
+      <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+          <span className="w-1 h-8 rounded-full" style={{ background: 'var(--neon-green)', boxShadow: '0 0 10px var(--neon-green)' }} />
+          Sector Hub
         </h1>
-        <p className="text-slate-500 mt-1 text-sm">Live rotation signals, strength matrix calculations, and leaders</p>
-      </div>
+        <p className="text-slate-500 mt-1 text-sm ml-4">Live sector strength, momentum, and capital rotation</p>
+      </motion.div>
 
-      {/* 4 Sector Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {sorted.map((sec, i) => {
-          const score = Math.round(sec.strength_score || sec.score || 0);
-          const momentum = sec.momentum || 0;
-          const isTop = i < 2;
-          const borderColor = isTop ? 'border-emerald-500/40' : 'border-red-500/40';
-          const rotation = momentum > 0 ? 'Rotating In' : momentum < 0 ? 'Rotating Out' : 'Hold';
-          const rotColor = momentum > 0 ? 'text-emerald-400' : momentum < 0 ? 'text-red-400' : 'text-yellow-400';
-          const rotIcon = momentum > 0 ? <TrendingUp size={12} /> : momentum < 0 ? <TrendingDown size={12} /> : <RotateCw size={12} />;
-
-          return (
-            <div key={sec.sector} className={`glass-panel p-5 border-t-2 ${borderColor}`}>
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Sector</p>
-                  <h2 className="text-xl font-bold text-white">{sec.sector}</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1 space-y-4 max-h-[600px] overflow-y-auto pr-2">
+          {sectors.map((s, i) => {
+            const score = s.strength_score || 0;
+            const glow = score >= 60 ? 'green' : score >= 40 ? 'cyan' : 'red';
+            const colorClass = score >= 60 ? 'text-emerald-400' : score >= 40 ? 'text-cyan-400' : 'text-red-400';
+            return (
+              <GlassCard key={s.sector} delay={i * 0.1} glow={glow}>
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-white">{s.sector}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`text-[10px] font-bold uppercase tracking-widest ${colorClass}`}>
+                        {score >= 60 ? 'Leading' : score >= 40 ? 'Neutral' : 'Lagging'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`p-2 rounded-lg border ${score >= 50 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'bg-red-500/10 border-red-500/20 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.2)]'}`}>
+                    {score >= 50 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+                  </div>
                 </div>
-                <span className="text-sm text-slate-400">Score: <span className="font-bold text-white">{score}</span></span>
+
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between text-[9px] uppercase tracking-wider text-slate-500 mb-1 font-bold">
+                      <span>Strength Score</span>
+                      <span className={`font-mono ${colorClass}`}>{score.toFixed(1)} / 100</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                      <div className={`h-full ${score >= 60 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : score >= 40 ? 'bg-cyan-500 shadow-[0_0_8px_rgba(0,240,255,0.8)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`} style={{ width: `${score}%` }} />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-800/50">
+                      <p className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1">Momentum</p>
+                      <p className={`text-xs font-bold font-mono ${s.momentum >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {s.momentum > 0 ? '+' : ''}{(s.momentum || 0).toFixed(2)}%
+                      </p>
+                    </div>
+                    <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-800/50">
+                      <p className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1">Rotation</p>
+                      <p className={`text-xs font-bold font-mono ${s.rotation === 'Rotating In' ? 'text-emerald-400' : s.rotation === 'Rotating Out' ? 'text-red-400' : 'text-slate-300'}`}>
+                        {s.rotation || 'Hold'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </GlassCard>
+            );
+          })}
+        </div>
+
+        <div className="lg:col-span-2 space-y-6">
+          <GlassCard delay={0.4} hover={false} glow="cyan" className="h-[400px]">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-lg font-bold text-white">30-Day Capital Rotation</h3>
+                <p className="text-[10px] text-cyan-500/40 mt-1 uppercase tracking-wider">Historical strength scores over time</p>
               </div>
-
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Momentum</p>
-                  <span className={`flex items-center gap-1 text-sm font-bold ${momentum >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {momentum >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                    {momentum >= 0 ? '+' : ''}{(momentum * 100).toFixed(2)}%
-                  </span>
-                </div>
-                <div>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Rotation Signal</p>
-                  <span className={`flex items-center gap-1 text-sm font-bold ${rotColor}`}>
-                    {rotIcon}
-                    {rotation}
-                  </span>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-800/50 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Sector Leader</p>
-                  <span className="text-sm font-bold text-white">{sec.leader || 'N/A'}</span>
-                </div>
-                <Bookmark size={16} className="text-slate-600 hover:text-blue-400 cursor-pointer transition-colors" />
-              </div>
+              <StatusIndicator label="HISTORICAL" color="cyan" />
             </div>
-          );
-        })}
-      </div>
-
-      {/* 30-Day Relative Strength Chart */}
-      <div className="glass-panel p-6">
-        <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
-          <RotateCw size={18} className="text-blue-400" />
-          30-Day Relative Strength (vs Nifty 50)
-        </h3>
-        <p className="text-xs text-slate-500 mb-2">Values above 1.0 = outperforming Nifty · Below 1.0 = underperforming</p>
-        <div className="h-96 w-full mt-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={history} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-              <XAxis dataKey="date" stroke="#475569" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-              <YAxis
-                stroke="#475569"
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-                domain={['auto', 'auto']}
-                tickFormatter={(v) => v.toFixed(2)}
-              />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '10px', color: '#fff', fontSize: 12, padding: '10px 14px' }}
-                labelStyle={{ color: '#94a3b8', marginBottom: 4 }}
-                formatter={(value, name) => [value.toFixed(4), name]}
-              />
-              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-              {/* Reference line at 1.0 (Nifty baseline) */}
-              {Object.entries(SECTOR_COLORS).map(([name, color]) => (
-                <Line
-                  key={name}
-                  type="monotone"
-                  dataKey={name}
-                  stroke={color}
-                  strokeWidth={2.5}
-                  dot={false}
-                  activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff' }}
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
+            
+            {history.length > 0 ? (
+              <div className="h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={history} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0, 240, 255, 0.05)" vertical={false} />
+                    <XAxis dataKey="date" stroke="#1e293b" tick={{ fill: '#475569', fontSize: 10 }} tickFormatter={d => d.substring(5)} axisLine={false} tickLine={false} />
+                    <YAxis domain={['auto', 'auto']} stroke="#1e293b" tick={{ fill: '#475569', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        border: '1px solid rgba(0, 240, 255, 0.15)',
+                        borderRadius: '12px',
+                        color: '#fff',
+                        backdropFilter: 'blur(20px)',
+                        boxShadow: '0 0 20px rgba(0, 240, 255, 0.05)',
+                      }}
+                      labelStyle={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px' }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '11px', color: '#94a3b8' }} />
+                    {Object.keys(history[0] || {}).filter(k => k !== 'date').map((sector, i) => (
+                      <Line
+                        key={sector}
+                        type="monotone"
+                        dataKey={sector}
+                        stroke={SECTOR_COLORS[sector] || '#94a3b8'}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 6, fill: SECTOR_COLORS[sector], stroke: '#0f172a', strokeWidth: 2 }}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-slate-500 italic">Not enough historical data collected yet.</div>
+            )}
+          </GlassCard>
         </div>
       </div>
     </div>

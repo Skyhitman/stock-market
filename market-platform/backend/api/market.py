@@ -191,10 +191,10 @@ def get_market_movers(db: Session = Depends(get_db)):
             "ticker": symbol,
             "name": stock.name if stock else symbol,
             "sector": stock.sector if stock else "NSE Stock",
-            "open": item.get('open_price', 0),
-            "high": item.get('high_price', 0),
-            "low": item.get('low_price', 0),
-            "close": item.get('ltp', 0),
+            "open": item.get('open_price') or item.get('open') or 0,
+            "high": item.get('high_price') or item.get('high') or 0,
+            "low": item.get('low_price') or item.get('low') or 0,
+            "close": item.get('ltp') or item.get('close') or 0,
             "volume": item.get('trade_quantity', 0),
             "return_pct": item.get('perChange', 0)
         })
@@ -208,10 +208,10 @@ def get_market_movers(db: Session = Depends(get_db)):
             "ticker": symbol,
             "name": stock.name if stock else symbol,
             "sector": stock.sector if stock else "NSE Stock",
-            "open": item.get('open_price', 0),
-            "high": item.get('high_price', 0),
-            "low": item.get('low_price', 0),
-            "close": item.get('ltp', 0),
+            "open": item.get('open_price') or item.get('open') or 0,
+            "high": item.get('high_price') or item.get('high') or 0,
+            "low": item.get('low_price') or item.get('low') or 0,
+            "close": item.get('ltp') or item.get('close') or 0,
             "volume": item.get('trade_quantity', 0),
             "return_pct": item.get('perChange', 0)
         })

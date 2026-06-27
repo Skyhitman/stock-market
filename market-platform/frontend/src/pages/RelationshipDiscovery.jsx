@@ -1,14 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Loader2, GitBranch, Grid3x3, Network } from 'lucide-react';
-import { fetchLeaders, fetchCorrelationHeatmap, fetchNetworkGraph } from '../api/client';
+import { GitBranch, Grid3x3, Network } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import * as d3 from 'd3';
+import { fetchLeaders, fetchCorrelationHeatmap, fetchNetworkGraph } from '../api/client';
+import GlassCard from '../components/GlassCard';
+import { HoloLoader, StatusIndicator } from '../components/HUDElements';
 
-const SECTOR_COLORS = {
-  Banking: '#f59e0b',
-  Pharma: '#10b981',
-  IT: '#3b82f6',
-  Energy: '#ef4444',
-};
+const SECTOR_COLORS = { Banking: '#f59e0b', Pharma: '#10b981', IT: '#00f0ff', Energy: '#ef4444' };
 
 export default function RelationshipDiscovery({ lastRefresh }) {
   const [tab, setTab] = useState('leadlag');
@@ -16,291 +14,279 @@ export default function RelationshipDiscovery({ lastRefresh }) {
   const [heatmap, setHeatmap] = useState(null);
   const [network, setNetwork] = useState(null);
   const [loading, setLoading] = useState(true);
-  const heatmapRef = useRef(null);
-  const networkRef = useRef(null);
+  const [heatmapEl, setHeatmapEl] = useState(null);
+  const [networkEl, setNetworkEl] = useState(null);
 
   useEffect(() => {
     Promise.all([fetchLeaders(), fetchCorrelationHeatmap(), fetchNetworkGraph()])
-      .then(([lData, hData, nData]) => {
-        setLeaders(lData);
-        setHeatmap(hData);
-        setNetwork(nData);
-        setLoading(false);
-      })
-      .catch(err => { console.error(err); setLoading(false); });
+      .then(([l, h, n]) => {
+        setLeaders(l); setHeatmap(h); setNetwork(n); setLoading(false);
+      }).catch(err => { console.error(err); setLoading(false); });
   }, [lastRefresh]);
 
-  // Heatmap D3 rendering
   useEffect(() => {
-    if (tab !== 'heatmap' || !heatmap || !heatmapRef.current) return;
-    const container = heatmapRef.current;
-    d3.select(container).selectAll('*').remove();
-
-    let tickers = [];
-    let matrix = [];
-    
-    if (Array.isArray(heatmap)) {
-      // Backend returns flat array: [{ticker_a, ticker_b, pearson_corr}]
-      const tSet = new Set();
-      heatmap.forEach(item => {
-        tSet.add(item.ticker_a);
-        tSet.add(item.ticker_b);
-      });
-      tickers = Array.from(tSet).sort();
+    if (tab === 'heatmap' && heatmap && heatmapEl) {
+      heatmapEl.innerHTML = '';
+      const data = heatmap;
+      const margin = {top: 60, right: 50, bottom: 30, left: 90},
+            width = 600 - margin.left - margin.right,
+            height = 600 - margin.top - margin.bottom;
       
-      const n = tickers.length;
-      matrix = Array(n).fill(null).map(() => Array(n).fill(0));
+      const svg = d3.select(heatmapEl).append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
       
-      heatmap.forEach(item => {
-        const i = tickers.indexOf(item.ticker_a);
-        const j = tickers.indexOf(item.ticker_b);
-        if (i !== -1 && j !== -1) {
-          matrix[i][j] = item.pearson_corr || 0;
-          matrix[j][i] = item.pearson_corr || 0;
-        }
+      // Get unique list of tickers
+      const tickersSet = new Set();
+      data.forEach(d => { 
+        if (d && d.ticker_a) tickersSet.add(d.ticker_a); 
+        if (d && d.ticker_b) tickersSet.add(d.ticker_b); 
       });
-      // Set diagonal to 1.0
-      for(let i=0; i<n; i++) matrix[i][i] = 1.0;
-    } else {
-      tickers = heatmap.tickers || [];
-      matrix = heatmap.matrix || [];
+      const tickers = Array.from(tickersSet);
+      
+      // Build lookup map for O(1) symmetric lookup
+      const corrMap = {};
+      data.forEach(d => {
+        const key1 = `${d.ticker_a}:${d.ticker_b}`;
+        const key2 = `${d.ticker_b}:${d.ticker_a}`;
+        corrMap[key1] = d.pearson_corr;
+        corrMap[key2] = d.pearson_corr;
+      });
+      
+      // Generate complete symmetric grid data including self-correlation diagonal
+      const gridData = [];
+      tickers.forEach(t1 => {
+        tickers.forEach(t2 => {
+          let corr = 0.0;
+          if (t1 === t2) {
+            corr = 1.0; // Self-correlation is always 1.0
+          } else {
+            const key = `${t1}:${t2}`;
+            corr = corrMap[key] !== undefined ? corrMap[key] : 0.0;
+          }
+          gridData.push({
+            ticker_a: t1,
+            ticker_b: t2,
+            pearson_corr: corr
+          });
+        });
+      });
+      
+      const cleanTickers = tickers.map(t => t.replace('.NS', ''));
+      const x = d3.scaleBand().range([ 0, width ]).domain(cleanTickers).padding(0.05);
+      const y = d3.scaleBand().range([ height, 0 ]).domain(cleanTickers).padding(0.05);
+      
+      // Top Axis with custom 5-letter formatting, rotated 45 degrees
+      svg.append("g")
+        .attr("class", "x-axis")
+        .call(d3.axisTop(x).tickSize(0).tickFormat(d => d.substring(0, 5)))
+        .selectAll("text")
+        .attr("transform", "rotate(-45)")
+        .style("text-anchor", "start")
+        .attr("dx", "8px")
+        .attr("dy", "-5px");
+        
+      svg.select(".x-axis .domain").remove();
+        
+      // Y Axis on the left
+      svg.append("g")
+        .style("font-size", 10)
+        .call(d3.axisLeft(y).tickSize(0))
+        .select(".domain").remove();
+      
+      // Diverging color scale: Red (negative correlation) -> Dark (no correlation) -> Green (positive correlation)
+      const myColor = d3.scaleLinear().range(["#ef4444", "#0f172a", "#10b981"]).domain([-1, 0, 1]);
+      
+      // Draw grid cells
+      svg.selectAll("rect")
+        .data(gridData)
+        .join("rect")
+        .attr("x", d => x(d.ticker_a.replace('.NS', '')))
+        .attr("y", d => y(d.ticker_b.replace('.NS', '')))
+        .attr("rx", 4)
+        .attr("ry", 4)
+        .attr("width", x.bandwidth())
+        .attr("height", y.bandwidth())
+        .style("fill", d => myColor(d.pearson_corr))
+        .style("stroke-width", 2)
+        .style("stroke", "#1e293b")
+        .style("opacity", 0.85)
+        .on("mouseover", function() { 
+          d3.select(this).style("stroke", "#00f0ff").style("opacity", 1); 
+        })
+        .on("mouseleave", function() { 
+          d3.select(this).style("stroke", "#1e293b").style("opacity", 0.85); 
+        });
+        
+      // Add correlation values ONLY inside diagonal cells (self-correlation) showing '1.0'
+      svg.selectAll(".corr-text")
+        .data(gridData.filter(d => d.ticker_a === d.ticker_b))
+        .join("text")
+        .attr("class", "corr-text")
+        .attr("x", d => x(d.ticker_a.replace('.NS', '')) + x.bandwidth() / 2)
+        .attr("y", d => y(d.ticker_b.replace('.NS', '')) + y.bandwidth() / 2 + 3)
+        .attr("text-anchor", "middle")
+        .text("1.0")
+        .style("fill", "#ffffff")
+        .style("font-size", "9px")
+        .style("font-family", "monospace")
+        .style("font-weight", "bold")
+        .style("pointer-events", "none");
+        
+      svg.selectAll(".domain").remove();
+      svg.selectAll("text").style("fill", "#94a3b8").style("font-family", "monospace");
     }
+  }, [tab, heatmap, heatmapEl]);
 
-    const n = tickers.length;
-    if (n === 0) return;
-
-    const cellSize = Math.min(36, 600 / n);
-    const margin = { top: 80, right: 10, bottom: 10, left: 90 };
-    const w = margin.left + n * cellSize + margin.right;
-    const h = margin.top + n * cellSize + margin.bottom;
-
-    const svg = d3.select(container).append('svg').attr('width', w).attr('height', h);
-    const colorScale = d3.scaleLinear()
-      .domain([-1, 0, 1])
-      .range(['#be185d', '#1e293b', '#10b981']);
-
-    // Labels top
-    svg.selectAll('.col-label')
-      .data(tickers).enter()
-      .append('text')
-      .attr('x', (d, i) => margin.left + i * cellSize + cellSize / 2)
-      .attr('y', margin.top - 8)
-      .attr('text-anchor', 'end')
-      .attr('transform', (d, i) => `rotate(-45, ${margin.left + i * cellSize + cellSize / 2}, ${margin.top - 8})`)
-      .attr('font-size', 9).attr('fill', '#94a3b8').attr('font-weight', 700)
-      .text(d => d.replace('.NS', ''));
-
-    // Labels left
-    svg.selectAll('.row-label')
-      .data(tickers).enter()
-      .append('text')
-      .attr('x', margin.left - 6)
-      .attr('y', (d, i) => margin.top + i * cellSize + cellSize / 2 + 3)
-      .attr('text-anchor', 'end')
-      .attr('font-size', 9).attr('fill', '#94a3b8').attr('font-weight', 700)
-      .text(d => d.replace('.NS', ''));
-
-    // Cells
-    for (let i = 0; i < n; i++) {
-      for (let j = 0; j < n; j++) {
-        const val = matrix[i]?.[j] ?? 0;
-        svg.append('rect')
-          .attr('x', margin.left + j * cellSize)
-          .attr('y', margin.top + i * cellSize)
-          .attr('width', cellSize - 1)
-          .attr('height', cellSize - 1)
-          .attr('fill', colorScale(val))
-          .attr('rx', 2)
-          .append('title').text(`${tickers[i]} × ${tickers[j]}: ${val.toFixed(2)}`);
-
-        if (i === j) {
-          svg.append('text')
-            .attr('x', margin.left + j * cellSize + cellSize / 2)
-            .attr('y', margin.top + i * cellSize + cellSize / 2 + 3)
-            .attr('text-anchor', 'middle')
-            .attr('font-size', 8).attr('fill', '#94a3b8')
-            .text('1.0');
-        }
+  useEffect(() => {
+    if (tab === 'network' && network && networkEl) {
+      networkEl.innerHTML = '';
+      const width = 800, height = 600;
+      const svg = d3.select(networkEl).append("svg")
+        .attr("width", width).attr("height", height);
+      
+      const mainGroup = svg.append("g");
+      
+      // Copy nodes and links to prevent D3 from mutating React state
+      const nodes = network.nodes.map(d => ({ ...d }));
+      const links = network.links.map(d => ({ ...d }));
+      
+      const simulation = d3.forceSimulation(nodes)
+        .force("link", d3.forceLink(links).id(d => d.id).distance(120))
+        .force("charge", d3.forceManyBody().strength(-200))
+        .force("center", d3.forceCenter(width / 2, height / 2));
+      
+      const link = mainGroup.append("g")
+        .attr("class", "links")
+        .selectAll("line")
+        .data(links)
+        .enter().append("line")
+        .attr("stroke-width", d => Math.abs(d.value) * 3)
+        .attr("stroke", d => d.value > 0 ? "rgba(16,185,129,0.4)" : "rgba(239,68,68,0.4)");
+      
+      const node = mainGroup.append("g")
+        .attr("class", "nodes")
+        .selectAll("g")
+        .data(nodes)
+        .enter().append("g")
+        .call(d3.drag()
+          .on("start", dragstarted)
+          .on("drag", dragged)
+          .on("end", dragended)
+        );
+      
+      node.append("circle")
+        .attr("r", 12)
+        .attr("fill", d => SECTOR_COLORS[d.sector] || "#3b82f6")
+        .style("filter", "drop-shadow(0 0 8px rgba(0,240,255,0.4))");
+      
+      node.append("text")
+        .text(d => d.id.replace('.NS', ''))
+        .attr('x', 15)
+        .attr('y', 4)
+        .style("fill", "#e2e8f0")
+        .style("font-family", "monospace")
+        .style("font-size", "11px")
+        .style("pointer-events", "none");
+      
+      simulation.on("tick", () => {
+        link
+          .attr("x1", d => d.source.x)
+          .attr("y1", d => d.source.y)
+          .attr("x2", d => d.target.x)
+          .attr("y2", d => d.target.y);
+        node
+          .attr("transform", d => `translate(${d.x},${d.y})`);
+      });
+      
+      function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
       }
+      
+      function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+      }
+      
+      function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+      }
+      
+      return () => {
+        simulation.stop();
+      };
     }
-  }, [tab, heatmap]);
+  }, [tab, network, networkEl]);
 
-  // Network D3 rendering
-  useEffect(() => {
-    if (tab !== 'network' || !network || !networkRef.current) return;
-    const container = networkRef.current;
-    d3.select(container).selectAll('*').remove();
-
-    const width = container.clientWidth || 800;
-    const height = 500;
-
-    const svg = d3.select(container).append('svg')
-      .attr('width', width).attr('height', height);
-
-    const nodes = (network.nodes || []).map(n => ({ ...n, id: n.ticker || n.id }));
-    const links = (network.edges || network.links || []).map(l => ({
-      source: l.source,
-      target: l.target,
-      value: l.correlation || l.value || 0.5
-    }));
-
-    const simulation = d3.forceSimulation(nodes)
-      .force('link', d3.forceLink(links).id(d => d.id).distance(100))
-      .force('charge', d3.forceManyBody().strength(-200))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius(30));
-
-    const link = svg.append('g').selectAll('line')
-      .data(links).enter().append('line')
-      .attr('stroke', '#334155').attr('stroke-width', 1.5).attr('stroke-opacity', 0.6);
-
-    // Arrow markers
-    svg.append('defs').selectAll('marker')
-      .data(['end']).enter().append('marker')
-      .attr('id', 'arrow').attr('viewBox', '0 -5 10 10')
-      .attr('refX', 20).attr('refY', 0).attr('markerWidth', 6).attr('markerHeight', 6)
-      .attr('orient', 'auto')
-      .append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', '#475569');
-
-    link.attr('marker-end', 'url(#arrow)');
-
-    const node = svg.append('g').selectAll('g')
-      .data(nodes).enter().append('g')
-      .call(d3.drag()
-        .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
-        .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
-        .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
-      );
-
-    node.append('circle')
-      .attr('r', d => Math.max(8, (d.score || 40) / 5))
-      .attr('fill', d => SECTOR_COLORS[d.sector] || '#6366f1')
-      .attr('stroke', '#0f172a').attr('stroke-width', 2);
-
-    node.append('text')
-      .attr('dx', 14).attr('dy', 4)
-      .attr('font-size', 10).attr('fill', '#94a3b8').attr('font-weight', 600)
-      .text(d => (d.id || '').replace('.NS', ''));
-
-    simulation.on('tick', () => {
-      link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
-          .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
-      node.attr('transform', d => `translate(${d.x},${d.y})`);
-    });
-  }, [tab, network]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="animate-spin text-blue-500" size={40} />
-      </div>
-    );
-  }
-
-  const tabs = [
-    { key: 'leadlag', label: 'Pairs Lead/Lag', icon: GitBranch },
-    { key: 'heatmap', label: 'Correlation Heatmap', icon: Grid3x3 },
-    { key: 'network', label: 'Network Graph', icon: Network },
-  ];
+  if (loading) return <HoloLoader />;
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-white flex items-center gap-2">
-            <span className="w-1 h-8 bg-blue-500 rounded-full inline-block" />
-            Relationship Discovery
-          </h1>
-          <p className="text-slate-500 mt-1 text-sm">Examine lead-lag indicators, cross-asset correlations, and node graphs</p>
-        </div>
-        <div className="flex gap-1 bg-slate-800/60 p-1 rounded-lg">
-          {tabs.map(t => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                tab === t.key ? 'bg-blue-500 text-white' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <t.icon size={14} />
-              {t.label}
-            </button>
-          ))}
-        </div>
+    <div className="space-y-6">
+      <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+          <span className="w-1 h-8 rounded-full" style={{ background: 'var(--neon-blue)', boxShadow: '0 0 10px var(--neon-blue)' }} />
+          Neural Net Connect
+        </h1>
+        <p className="text-slate-500 mt-1 text-sm ml-4">Discover hidden correlations and leader-lagger relationships</p>
+      </motion.div>
+
+      <div className="flex gap-4 border-b border-slate-800/50 pb-2">
+        {[ { id: 'leadlag', icon: GitBranch, label: 'Leader/Lagger' }, { id: 'heatmap', icon: Grid3x3, label: 'Correlation Heatmap' }, { id: 'network', icon: Network, label: 'Network Graph' } ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} className={`px-4 py-2 text-sm font-bold flex items-center gap-2 transition-colors relative ${tab === t.id ? 'text-cyan-400' : 'text-slate-500 hover:text-slate-300'}`}>
+            <t.icon size={16} /> {t.label}
+            {tab === t.id && <motion.div layoutId="relTabLine" className="absolute bottom-[-9px] left-0 right-0 h-0.5 bg-cyan-500" style={{ boxShadow: '0 0 8px rgba(0,240,255,0.5)' }} />}
+          </button>
+        ))}
       </div>
 
-      {/* Lead/Lag Tab */}
-      {tab === 'leadlag' && (
-        <div className="glass-panel p-6">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-1">
-            <GitBranch size={18} className="text-blue-400" />
-            Pairs Lead/Lag Indicators
-          </h3>
-          <p className="text-xs text-slate-500 mb-6">Statistically maps lead-lag dynamics. Moves in the leader stock often trigger a matching move in the follower stock after a lag period.</p>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="text-xs text-slate-400 uppercase tracking-wider font-bold border-b border-slate-700/50">
-                <tr>
-                  <th className="p-3">Leader (Moves First)</th>
-                  <th className="p-3">Follower (Moves Later)</th>
-                  <th className="p-3">Lag Correlation</th>
-                  <th className="p-3 text-right">Influence Strength</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/30">
-                {leaders.map((pair, i) => (
-                  <tr key={i} className="hover:bg-slate-800/30">
-                    <td className="p-3 font-bold text-white">
-                      {(pair.leader || pair.ticker_a || '').replace('.NS', '')}
-                      <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/15 text-blue-400 uppercase">Leader</span>
-                    </td>
-                    <td className="p-3 text-slate-300 flex items-center gap-2">
-                      <span className="text-slate-600">→</span>
-                      {(pair.follower || pair.ticker_b || '').replace('.NS', '')}
-                    </td>
-                    <td className="p-3">
-                      <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono font-bold text-xs">
-                        {(Number(pair.lag_corr || pair.lag_correlation || 0)).toFixed(1)}%
-                      </span>
-                    </td>
-                    <td className="p-3 text-right font-mono text-slate-400">
-                      {Number(pair.strength || pair.influence || pair.leader_score || 0).toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
-                {leaders.length === 0 && (
-                  <tr><td colSpan={4} className="p-6 text-center text-slate-600">No lead/lag data available</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Heatmap Tab */}
-      {tab === 'heatmap' && (
-        <div className="glass-panel p-6">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-1">
-            <Grid3x3 size={18} className="text-blue-400" />
-            Sector Correlation Heatmap
-          </h3>
-          <p className="text-xs text-slate-500 mb-4">Symmetric matrix of Pearson correlation coefficients. Vibrant green denotes high direct correlation; vibrant red denotes inverse correlation.</p>
-          <div ref={heatmapRef} className="overflow-x-auto flex justify-center" />
-        </div>
-      )}
-
-      {/* Network Tab */}
-      {tab === 'network' && (
-        <div className="glass-panel p-6">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-1">
-            <Network size={18} className="text-blue-400" />
-            Directed Correlation Networks
-          </h3>
-          <p className="text-xs text-slate-500 mb-4">Node size matches tactical Opportunity score. Lines denote Pearson correlation {'>'} 0.50. Directed arrows denote Leader → Follower influence lines. Drag nodes to reshape layout.</p>
-          <div ref={networkRef} className="w-full" style={{ minHeight: 500 }} />
-        </div>
-      )}
+      <AnimatePresence mode="wait">
+        <motion.div key={tab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+          {tab === 'leadlag' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {leaders.map((rel, i) => (
+                <GlassCard key={i} delay={i * 0.1} glow="cyan">
+                  <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-800/50">
+                    <div className="text-center">
+                      <div className="text-xs text-cyan-500/60 uppercase tracking-widest font-bold mb-1">Leader</div>
+                      <div className="text-xl font-bold text-white font-mono">{rel.leader.replace('.NS', '')}</div>
+                    </div>
+                    <GitBranch className="text-cyan-500/30 rotate-90 md:rotate-0" size={24} />
+                    <div className="text-center">
+                      <div className="text-xs text-purple-500/60 uppercase tracking-widest font-bold mb-1">Follower</div>
+                      <div className="text-xl font-bold text-white font-mono">{rel.follower.replace('.NS', '')}</div>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400 uppercase tracking-wider">Correlation</span>
+                      <span className="text-emerald-400 font-bold font-mono">{(rel.lag_corr).toFixed(1)}%</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400 uppercase tracking-wider">Strength</span>
+                      <span className="text-cyan-400 font-bold font-mono">{rel.strength}</span>
+                    </div>
+                  </div>
+                </GlassCard>
+              ))}
+            </div>
+          )}
+          {tab === 'heatmap' && (
+            <GlassCard hover={false} glow="cyan" className="flex items-center justify-center p-8">
+              <div ref={setHeatmapEl} className="overflow-x-auto" />
+            </GlassCard>
+          )}
+          {tab === 'network' && (
+            <GlassCard hover={false} glow="purple" className="flex items-center justify-center p-8">
+              <div ref={setNetworkEl} className="overflow-x-auto" />
+            </GlassCard>
+          )}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }

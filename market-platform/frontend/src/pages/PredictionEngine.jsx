@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, BrainCircuit, AlertTriangle, Sparkles, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
+import { BrainCircuit, AlertTriangle, Sparkles, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { fetchPredictions, fetchSectorPredictions, fetchStocksOverview } from '../api/client';
+import GlassCard from '../components/GlassCard';
+import { HoloLoader, StatusIndicator } from '../components/HUDElements';
 
 export default function PredictionEngine({ lastRefresh }) {
   const [predictions, setPredictions] = useState([]);
@@ -8,7 +11,6 @@ export default function PredictionEngine({ lastRefresh }) {
   const [loading, setLoading] = useState(true);
   const [selectedTicker, setSelectedTicker] = useState(null);
   const [activeTab, setActiveTab] = useState('stock');
-
   const [availableStocks, setAvailableStocks] = useState([]);
 
   useEffect(() => {
@@ -16,242 +18,189 @@ export default function PredictionEngine({ lastRefresh }) {
       .then(([stockData, sectorData, overviewData]) => {
         setPredictions(stockData);
         setSectorPreds(sectorData);
-        
         let tickers = [...stockData.map(p => p.ticker)];
         if (overviewData) {
-          overviewData.forEach(s => {
-            if (!tickers.includes(s.ticker)) tickers.push(s.ticker);
-          });
+          overviewData.forEach(s => { if (!tickers.includes(s.ticker)) tickers.push(s.ticker); });
         }
         setAvailableStocks(tickers);
-
-        if (stockData.length > 0) {
-          setSelectedTicker(stockData[0].ticker);
-        }
+        if (stockData.length > 0) setSelectedTicker(stockData[0].ticker);
         setLoading(false);
       })
-      .catch(err => {
-        console.error(err);
-        setLoading(false);
-      });
+      .catch(err => { console.error(err); setLoading(false); });
   }, [lastRefresh]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="animate-spin text-purple-500" size={40} />
-      </div>
-    );
-  }
+  if (loading) return <HoloLoader />;
 
-  const selectedData = predictions.find(p => p.ticker === selectedTicker);
-
-  const parseReasoning = (jsonStr) => {
-    try {
-      if (typeof jsonStr === 'object') return jsonStr;
-      return JSON.parse(jsonStr);
-    } catch {
-      return {};
-    }
-  };
-
-  const getDrivers = (p) => {
-    if (!p) return [];
-    const r = parseReasoning(p.reasoning_json);
-    if (r.factors) return r.factors;
-    
-    // Fake factors if not provided by backend to match UI design exactly
-    const isBull = p.direction === 'Bullish';
-    return [
-      { name: 'Short Trend (20d)', value: isBull ? 0.8 : -0.2 },
-      { name: 'Long Trend (200d)', value: isBull ? 0.3 : -0.6 },
-      { name: 'Daily Open', value: isBull ? 0.5 : -0.5 },
-      { name: 'Medium Trend (50d)', value: isBull ? 0.2 : -0.4 },
-      { name: 'Volatility (ATR)', value: isBull ? -0.1 : -0.3 },
-    ];
-  };
+  const selectedPred = predictions.find(p => p.ticker === selectedTicker);
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-white flex items-center gap-2">
-            <span className="w-1 h-8 bg-blue-500 rounded-full inline-block" />
-            AI Prediction Engine
-          </h1>
-          <p className="text-slate-500 mt-1 text-sm">AI guesses whether each stock will go UP or DOWN tomorrow, and shows you why</p>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="flex bg-slate-800/40 p-1 rounded-lg">
-            <button 
-              className={`px-4 py-1.5 rounded-md text-sm font-bold transition-colors ${activeTab === 'stock' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
-              onClick={() => setActiveTab('stock')}
-            >
-              Stock Forecasts
-            </button>
-            <button 
-              className={`px-4 py-1.5 rounded-md text-sm font-bold transition-colors ${activeTab === 'sector' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
-              onClick={() => setActiveTab('sector')}
-            >
-              Sector Forecasts
-            </button>
-          </div>
-          
-          <div className="flex items-center gap-2 bg-slate-900 border border-slate-700/50 rounded-lg px-3 py-1.5">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Pick Stock</span>
-            <select 
-              className="bg-transparent text-white font-bold text-sm focus:outline-none appearance-none cursor-pointer pr-4"
-              value={selectedTicker || ''}
-              onChange={(e) => setSelectedTicker(e.target.value)}
-            >
-              {availableStocks.map(t => (
-                <option key={t} value={t} className="bg-slate-900 text-white">
-                  {t.replace('.NS', '')}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+    <div className="space-y-6">
+      <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+          <span className="w-1 h-8 rounded-full" style={{ background: 'var(--neon-purple)', boxShadow: '0 0 10px var(--neon-purple)' }} />
+          AI Prediction Core
+        </h1>
+        <p className="text-slate-500 mt-1 text-sm ml-4">Next-day market movement forecasts powered by XGBoost</p>
+      </motion.div>
+
+      <div className="flex gap-4 border-b border-slate-800/50 pb-2">
+        <button onClick={() => setActiveTab('stock')}
+          className={`px-4 py-2 text-sm font-bold transition-colors relative ${activeTab === 'stock' ? 'text-purple-400' : 'text-slate-500 hover:text-slate-300'}`}>
+          Stock Predictions
+          {activeTab === 'stock' && <motion.div layoutId="tabLine" className="absolute bottom-[-9px] left-0 right-0 h-0.5 bg-purple-500" style={{ boxShadow: '0 0 8px rgba(168,85,247,0.5)' }} />}
+        </button>
+        <button onClick={() => setActiveTab('sector')}
+          className={`px-4 py-2 text-sm font-bold transition-colors relative ${activeTab === 'sector' ? 'text-purple-400' : 'text-slate-500 hover:text-slate-300'}`}>
+          Sector Predictions
+          {activeTab === 'sector' && <motion.div layoutId="tabLine" className="absolute bottom-[-9px] left-0 right-0 h-0.5 bg-purple-500" style={{ boxShadow: '0 0 8px rgba(168,85,247,0.5)' }} />}
+        </button>
       </div>
 
-      <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 flex gap-3">
-        <AlertTriangle className="text-amber-500 shrink-0 mt-0.5" size={18} />
-        <div>
-          <h4 className="text-sm font-bold text-amber-500 uppercase tracking-wider mb-1">Algorithmic Forecast Disclosure</h4>
-          <p className="text-xs text-amber-500/70">All predictions are generated by AI using past price data, trends, and volume. This is for learning purposes only — NOT financial advice. Always do your own research.</p>
-        </div>
-      </div>
+      <AnimatePresence mode="wait">
+        <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+          {activeTab === 'stock' ? (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-1 space-y-4 max-h-[700px] overflow-y-auto pr-2">
+                <GlassCard hover={false} className="p-3 mb-4 sticky top-0 z-10 backdrop-blur-xl">
+                  <div className="flex items-center gap-2 mb-2">
+                    <StatusIndicator label="AI ENGINE ACTIVE" color="purple" />
+                  </div>
+                  <select value={selectedTicker || ''} onChange={e => setSelectedTicker(e.target.value)}
+                    className="neon-input w-full cursor-pointer">
+                    {availableStocks.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </GlassCard>
 
-      {activeTab === 'stock' && !selectedData && (
-        <div className="glass-panel p-12 text-center text-slate-500">
-          <BrainCircuit size={48} className="mx-auto mb-4 opacity-50" />
-          <h3 className="text-xl font-bold text-white mb-2">No Prediction Available</h3>
-          <p>The AI model has not generated a prediction for {selectedTicker?.replace('.NS', '')} yet.</p>
-        </div>
-      )}
-
-      {activeTab === 'stock' && selectedData && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Prediction Box */}
-          <div className="glass-panel p-6 flex flex-col justify-between">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-8">
-              <Sparkles size={18} className="text-blue-400" />
-              Will This Stock Go Up or Down Tomorrow?
-            </h3>
-            
-            <div className="text-center mb-10">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block mb-3">AI's Answer</span>
-              <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl border ${selectedData.direction === 'Bullish' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
-                {selectedData.direction === 'Bullish' ? <TrendingUp size={24} /> : <TrendingDown size={24} />}
-                <span className="text-2xl font-black">
-                  Likely Going {selectedData.direction === 'Bullish' ? 'UP' : 'DOWN'}
-                </span>
+                <div className="space-y-3">
+                  {predictions.map(p => (
+                    <div key={p.ticker} onClick={() => setSelectedTicker(p.ticker)}
+                      className={`p-4 rounded-xl cursor-pointer transition-all border ${selectedTicker === p.ticker ? 'border-purple-500/50 bg-purple-500/10' : 'border-slate-800/50 bg-slate-900/40 hover:bg-slate-800/60'}`}
+                      style={{ boxShadow: selectedTicker === p.ticker ? '0 0 20px rgba(168,85,247,0.1)' : 'none' }}>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-bold text-white text-lg">{p.ticker}</span>
+                        {p.direction === 'Bullish' ? <TrendingUp className="text-emerald-400 drop-shadow-[0_0_5px_rgba(16,185,129,0.8)]" size={18} /> : <TrendingDown className="text-red-400 drop-shadow-[0_0_5px_rgba(239,68,68,0.8)]" size={18} />}
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] uppercase tracking-wider">
+                        <span className="text-slate-500">Confidence</span>
+                        <span className={`font-bold font-mono ${p.confidence > 70.0 ? 'text-purple-400' : 'text-slate-400'}`}>{p.confidence.toFixed(1)}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-6 mb-8">
-              <div className="text-center">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block mb-1">How Sure is the AI</span>
-                <span className="text-3xl font-black text-white">{selectedData.confidence?.toFixed(1)}%</span>
-              </div>
-              <div className="text-center">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block mb-1">Today's Price</span>
-                <span className="text-3xl font-black text-white">₹{selectedData.actual_close?.toFixed(1) || 'N/A'}</span>
-              </div>
-            </div>
+              <div className="lg:col-span-2 space-y-6">
+                {!selectedPred ? (
+                  <GlassCard hover={false} className="h-64 flex flex-col items-center justify-center">
+                    <BrainCircuit size={48} className="text-slate-600 mb-4 animate-pulse" />
+                    <p className="text-slate-400">Select a stock to view AI analysis</p>
+                  </GlassCard>
+                ) : (
+                  <>
+                    <GlassCard glow={selectedPred.direction === 'Bullish' ? 'green' : 'red'}>
+                      <div className="flex justify-between items-start mb-6">
+                        <div>
+                          <h2 className="text-3xl font-bold text-white mb-2">{selectedPred.ticker}</h2>
+                          <div className="flex items-center gap-3">
+                            <span className="text-[10px] text-cyan-500/60 font-bold uppercase tracking-[0.2em]">Next Day Forecast</span>
+                            <div className={`px-3 py-1 rounded-lg text-xs font-bold border flex items-center gap-2 ${selectedPred.direction === 'Bullish' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'bg-red-500/10 border-red-500/20 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.2)]'}`}>
+                              {selectedPred.direction === 'Bullish' ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                              {selectedPred.direction === 'Bullish' ? 'BULLISH (UP)' : 'BEARISH (DOWN)'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-[0.2em] mb-1">Model Confidence</p>
+                          <span className="text-3xl font-bold text-white font-mono neon-glow-purple">
+                            {selectedPred.confidence.toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
 
-            <div className="bg-slate-900/50 rounded-xl p-4 flex justify-between items-center border border-slate-800/50">
-              <span className="text-sm font-bold text-slate-400">AI's Predicted Price Tomorrow</span>
-              <span className={`text-xl font-mono font-bold ${selectedData.direction === 'Bullish' ? 'text-emerald-400' : 'text-red-400'}`}>
-                ₹{selectedData.pred_close?.toFixed(2) || 'N/A'}
-              </span>
-            </div>
-          </div>
-
-          {/* Key Drivers Box */}
-          <div className="glass-panel p-6 flex flex-col">
-            <div className="flex justify-between items-start mb-8">
-              <div>
-                <h3 className="text-lg font-bold text-white mb-1">Why is the AI predicting this? (Key Drivers)</h3>
-                <p className="text-xs text-slate-500">These are the top factors that caused the AI to make its prediction.</p>
-              </div>
-              <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest px-2 py-1 bg-slate-800 rounded">AI Reasoning</span>
-            </div>
-
-            <div className="flex-1 flex flex-col justify-center space-y-6">
-              {getDrivers(selectedData).map((driver, i) => {
-                const maxVal = Math.max(...getDrivers(selectedData).map(d => Math.abs(d.value)));
-                const width = Math.max(5, (Math.abs(driver.value) / maxVal) * 100);
-                const isBull = driver.value > 0;
-                
-                return (
-                  <div key={i} className="flex items-center gap-4">
-                    <span className="w-1/3 text-right text-xs font-bold text-slate-400">{driver.name}</span>
-                    <div className="w-2/3 flex items-center">
-                      <div className="w-1/2 flex justify-end pr-1">
-                        {!isBull && (
-                          <div 
-                            className="h-3 rounded-l-sm bg-red-500" 
-                            style={{ width: `${width}%` }}
-                          />
+                      <div className="bg-slate-950/50 rounded-xl p-5 border border-slate-800/50">
+                        <h4 className="text-[10px] text-cyan-500/60 font-bold uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                          <Sparkles size={12} className="text-purple-400" /> Key Drivers (SHAP Values)
+                        </h4>
+                        {selectedPred.top_factors && selectedPred.top_factors.length > 0 ? (
+                          <div className="space-y-4">
+                            {selectedPred.top_factors.sort((a,b) => Math.abs(b.shap) - Math.abs(a.shap)).slice(0, 5).map((factorObj, i) => {
+                              const feature = factorObj.feature;
+                              const impact = factorObj.shap;
+                              const isPositive = impact > 0;
+                              const maxImpact = Math.max(...selectedPred.top_factors.map(f => Math.abs(f.shap)));
+                              const width = Math.max(5, (Math.abs(impact) / maxImpact) * 100);
+                              return (
+                                <div key={i} className="relative">
+                                  <div className="flex justify-between text-xs mb-1.5">
+                                    <span className="text-slate-300 font-mono text-[10px]">{feature.toUpperCase()}</span>
+                                    <span className={`font-mono text-[10px] font-bold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+                                      {isPositive ? '+' : ''}{impact.toFixed(4)}
+                                    </span>
+                                  </div>
+                                  <div className="h-1.5 w-full bg-slate-800/50 rounded-full overflow-hidden flex">
+                                    <div className="h-full flex-1">
+                                      {!isPositive && <div className="h-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] float-right rounded-full" style={{ width: `${width}%` }} />}
+                                    </div>
+                                    <div className="w-[1px] h-full bg-slate-600/50 z-10" />
+                                    <div className="h-full flex-1">
+                                      {isPositive && <div className="h-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] rounded-full" style={{ width: `${width}%` }} />}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-500 italic">No feature attribution data available.</p>
                         )}
                       </div>
-                      <div className="w-[2px] h-6 bg-slate-700 mx-1" />
-                      <div className="w-1/2 flex justify-start pl-1">
-                        {isBull && (
-                          <div 
-                            className="h-3 rounded-r-sm bg-emerald-500" 
-                            style={{ width: `${width}%` }}
-                          />
-                        )}
+                    </GlassCard>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {sectorPreds.map((sector, i) => (
+                <GlassCard key={i} delay={i * 0.1} glow={sector.bullish_ratio > 50 ? 'green' : 'red'}>
+                  <div className="flex justify-between items-start mb-4">
+                    <h3 className="text-lg font-bold text-white">{sector.sector}</h3>
+                    <div className={`p-2 rounded-lg border ${sector.bullish_ratio > 50 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'bg-red-500/10 border-red-500/20 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.2)]'}`}>
+                      {sector.bullish_ratio > 50 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between text-[9px] uppercase tracking-wider text-slate-500 mb-1 font-bold">
+                        <span>Bullish Ratio</span>
+                        <span className="text-white font-mono">{(sector.bullish_ratio).toFixed(1)}%</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" style={{ width: `${sector.bullish_ratio}%` }} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-slate-800/50">
+                      <div>
+                        <p className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1">Avg Confidence</p>
+                        <p className="text-sm font-bold text-purple-400 font-mono">{(sector.confidence).toFixed(1)}%</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1">Total Signals</p>
+                        <p className="text-sm font-bold text-white font-mono">{sector.total_stocks}</p>
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-8 flex justify-center gap-6 pt-4 border-t border-slate-800/50">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span className="text-xs font-bold text-slate-400">Pushes Prediction UP (Bullish)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-red-500" />
-                <span className="text-xs font-bold text-slate-400">Pushes Prediction DOWN (Bearish)</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {activeTab === 'sector' && (
-        <div className="glass-panel p-6">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-800/80 text-slate-300 font-semibold border-b border-slate-700">
-              <tr>
-                <th className="p-3">Sector</th>
-                <th className="p-3">Prediction</th>
-                <th className="p-3">Confidence</th>
-                <th className="p-3">Bullish Ratio</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/50">
-              {sectorPreds.map((sp) => (
-                <tr key={sp.sector} className="hover:bg-slate-800/40">
-                  <td className="p-3 font-bold text-white">{sp.sector}</td>
-                  <td className={`p-3 font-bold ${sp.direction === 'Bullish' ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {sp.direction}
-                  </td>
-                  <td className="p-3 font-mono text-slate-300">{sp.confidence}%</td>
-                  <td className="p-3 font-mono text-slate-300">{sp.bullish_ratio}%</td>
-                </tr>
+                </GlassCard>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              {sectorPreds.length === 0 && (
+                <div className="col-span-full py-12 text-center text-slate-500">
+                  No sector prediction data available yet.
+                </div>
+              )}
+            </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }

@@ -10,6 +10,16 @@ from .api import sector, stocks, relationships, opportunity, predict, market, po
 # Create DB tables if they don't exist
 Base.metadata.create_all(bind=engine)
 
+# Try to add volatility column if it doesn't exist (automatic schema migration)
+try:
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE stock_features ADD COLUMN volatility FLOAT"))
+    print("[Startup] Added volatility column to stock_features table successfully.")
+except Exception as e:
+    # If the column already exists, this will fail silently, which is expected.
+    pass
+
 def _seed_in_background():
     """Run seed in a background thread so the server starts immediately."""
     db = SessionLocal()

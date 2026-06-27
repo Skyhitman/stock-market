@@ -50,7 +50,14 @@ def get_network_graph(db: Session = Depends(get_db)):
             "is_directed": is_directed
         })
         
-    nodes = [{"id": n, "group": 1} for n in nodes_set]
+    nodes = []
+    for n in nodes_set:
+        stock = db.query(models.Stock).filter(models.Stock.ticker == n).first()
+        nodes.append({
+            "id": n,
+            "group": 1,
+            "sector": stock.sector if stock else "Unknown"
+        })
     
     return {"nodes": nodes, "links": edges}
 
