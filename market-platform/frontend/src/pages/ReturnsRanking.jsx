@@ -1,13 +1,15 @@
 "import React, { useState, useEffect } from 'react';
 import { DollarSign, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
 const ReturnsRanking = () => {
   const [returnsData, setReturnsData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/stocks/returns')
+    fetch(`${API_BASE}/stocks/returns`)
       .then(res => {
         if (!res.ok) throw new Error('Failed to fetch returns data');
         return res.json();

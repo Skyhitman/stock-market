@@ -3,22 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from contextlib import asynccontextmanager
 import threading
+import os
 
 from .database import engine, Base, SessionLocal
 from .api import sector, stocks, relationships, opportunity, predict, market, portfolio, alerts, news, backtest
 
 # Create DB tables if they don't exist
 Base.metadata.create_all(bind=engine)
-
-# Try to add volatility column if it doesn't exist (automatic schema migration)
-try:
-    from sqlalchemy import text
-    with engine.begin() as conn:
-        conn.execute(text("ALTER TABLE stock_features ADD COLUMN volatility FLOAT"))
-    print("[Startup] Added volatility column to stock_features table successfully.")
-except Exception as e:
-    # If the column already exists, this will fail silently, which is expected.
-    pass
 
 def _seed_in_background():
     """Run seed in a background thread so the server starts immediately."""
@@ -52,10 +43,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Market Intelligence API", lifespan=lifespan)
 
-# CORS setup
+# CORS setup — allow Vercel frontend and localhost for dev
+allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict this
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -75,6 +67,10 @@ app.include_router(backtest.router)
 @app.get("/")
 def read_root():
     return {"status": "Market Intelligence API is running"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
 
 @app.post("/api/data/seed")
 def trigger_seed(background_tasks: BackgroundTasks):

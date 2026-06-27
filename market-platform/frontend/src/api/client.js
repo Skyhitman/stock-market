@@ -1,6 +1,6 @@
 // API Client for interacting with the backend
-
-const API_BASE = 'http://localhost:8000/api';
+// Uses VITE_API_URL env var in production, falls back to localhost for dev
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 async function fetchAPI(endpoint) {
   const res = await fetch(`${API_BASE}${endpoint}`);

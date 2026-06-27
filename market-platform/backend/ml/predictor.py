@@ -5,7 +5,18 @@ import numpy as np
 import json
 import os
 
-MODEL_PATH = "backend/ml/xgboost_model.json"
+# Bundled model shipped with the repo
+_BUNDLED_MODEL = os.path.join(os.path.dirname(__file__), "xgboost_model.json")
+# Retrained model saved at runtime (use /tmp on cloud since filesystem is ephemeral)
+_RUNTIME_MODEL = os.path.join("/tmp", "xgboost_model.json") if os.environ.get("RENDER") or os.environ.get("DATABASE_URL") else _BUNDLED_MODEL
+
+def _model_path():
+    """Return the best available model path: runtime-retrained first, then bundled."""
+    if os.path.exists(_RUNTIME_MODEL):
+        return _RUNTIME_MODEL
+    return _BUNDLED_MODEL
+
+MODEL_PATH = _BUNDLED_MODEL  # kept for backward compat
 
 def prepare_training_data(historical_df: pd.DataFrame):
     """
@@ -51,9 +62,10 @@ def train_predictor(historical_df: pd.DataFrame):
     
     model.fit(X, y)
     
-    # Save model
-    os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
-    model.save_model(MODEL_PATH)
+    # Save model to runtime path
+    save_path = _RUNTIME_MODEL
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    model.save_model(save_path)
     
     return True
 
@@ -61,11 +73,12 @@ def predict_next_day(latest_features: pd.DataFrame):
     """
     Predicts next day direction for a single row or dataframe.
     """
-    if not os.path.exists(MODEL_PATH):
+    model_file = _model_path()
+    if not os.path.exists(model_file):
         return None
         
     model = xgb.XGBClassifier()
-    model.load_model(MODEL_PATH)
+    model.load_model(model_file)
     
     features = [
         'open', 'high', 'low', 'close', 'volume', 'rsi', 'macd',

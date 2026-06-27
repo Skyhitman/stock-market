@@ -1,11 +1,11 @@
-from sqlalchemy import Column, Integer, String, Float, Date, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Float, Date, Boolean, DateTime, Text
 from .database import Base
 
 class Stock(Base):
     __tablename__ = "stocks"
     id = Column(Integer, primary_key=True, index=True)
     ticker = Column(String, unique=True, index=True)
-    name = Column(String)
+    name = Column(Text)
     sector = Column(String, index=True)
 
 class DailyPrice(Base):
@@ -57,7 +57,7 @@ class OpportunityScore(Base):
     momentum_weight = Column(Float)
     volume_weight = Column(Float)
     rs_weight = Column(Float)
-    explanation_json = Column(String) # JSON string
+    explanation_json = Column(Text) # JSON string
 
 class RelationshipScore(Base):
     __tablename__ = "relationship_scores"
@@ -79,17 +79,17 @@ class Prediction(Base):
     pred_close = Column(Float)
     direction = Column(String)
     confidence = Column(Float)
-    shap_json = Column(String) # JSON string
-    explanation_json = Column(String) # JSON string
+    shap_json = Column(Text) # JSON string
+    explanation_json = Column(Text) # JSON string
 
 class NewsArticle(Base):
     __tablename__ = "news_articles"
     id = Column(Integer, primary_key=True, index=True)
     ticker = Column(String, index=True)
-    title = Column(String)
+    title = Column(Text)
     sentiment_score = Column(Float)
-    link = Column(String)
-    publisher = Column(String)
+    link = Column(Text)
+    publisher = Column(Text)
     published_at = Column(DateTime, index=True)
 
 class PortfolioItem(Base):
@@ -103,7 +103,7 @@ class PortfolioItem(Base):
 class Alert(Base):
     __tablename__ = "alerts"
     id = Column(Integer, primary_key=True, index=True)
-    message = Column(String)
+    message = Column(Text)
     level = Column(String) # INFO, WARN, SUCCESS
     is_read = Column(Boolean, default=False)
     created_at = Column(DateTime, index=True)
