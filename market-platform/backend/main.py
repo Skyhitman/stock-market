@@ -79,6 +79,18 @@ def trigger_seed(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_full_seed)
     return {"status": "Seed started in background"}
 
+@app.get("/api/data/seed_sync")
+def trigger_seed_sync():
+    """Manually trigger a full data re-seed synchronously to diagnose errors."""
+    from .data.pipeline import run_full_seed
+    import traceback
+    try:
+        res = run_full_seed()
+        return {"status": "success", "result": res}
+    except Exception as e:
+        return {"status": "error", "error": str(e), "traceback": traceback.format_exc()}
+
+
 @app.get("/api/data/status")
 def data_status():
     """Check if the database has been seeded."""
