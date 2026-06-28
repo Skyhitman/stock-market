@@ -73,8 +73,10 @@ def get_sessions(db: Session = Depends(get_db), admin: models.User = Depends(che
 def get_stats(db: Session = Depends(get_db), admin: models.User = Depends(check_admin)):
     total_users = db.query(models.User).count()
     total_sessions = db.query(models.UserSession).count()
-    guest_sessions = db.query(models.UserSession).filter(models.UserSession.user_id == None).count()
-    google_sessions = db.query(models.UserSession).filter(models.UserSession.user_id != None).count()
+    
+    # Guest sessions have a User whose google_sub is None
+    guest_sessions = db.query(models.UserSession).join(models.User).filter(models.User.google_sub == None).count()
+    google_sessions = db.query(models.UserSession).join(models.User).filter(models.User.google_sub != None).count()
 
     # Aggregate page views
     page_counts = {}

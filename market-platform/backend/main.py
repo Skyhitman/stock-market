@@ -11,6 +11,18 @@ from .api import sector, stocks, relationships, opportunity, predict, market, po
 # Create DB tables if they don't exist
 Base.metadata.create_all(bind=engine)
 
+def run_migrations():
+    from sqlalchemy import text
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE portfolio_items ADD COLUMN user_id INTEGER REFERENCES users(id)"))
+            print("[Migration] Column user_id added successfully.")
+    except Exception as e:
+        # Ignore error if column already exists
+        pass
+
+run_migrations()
+
 def _seed_in_background():
     """Run seed in a background thread so the server starts immediately."""
     db = SessionLocal()
