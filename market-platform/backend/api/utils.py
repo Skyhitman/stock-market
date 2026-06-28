@@ -1,6 +1,9 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
+
+# IST = UTC+5:30
+IST = timezone(timedelta(hours=5, minutes=30))
 
 def get_data_date_info(db: Session):
     """Returns both the trading date and the last-updated timestamp as a dict."""
@@ -10,8 +13,9 @@ def get_data_date_info(db: Session):
     # Trading date from actual market data
     trading_date = str(latest_price.date) if latest_price else None
     
-    # Last updated = current time to show fresh fetch on every page load
-    last_updated = datetime.now().strftime("%d %b %Y, %I:%M %p").lower()
+    # Last updated = current IST time (not server local time which may be UTC)
+    now_ist = datetime.now(IST)
+    last_updated = now_ist.strftime("%d %b %Y, %I:%M %p").lower()
     
     return {
         "trading_date": trading_date,

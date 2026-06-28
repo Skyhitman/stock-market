@@ -13,7 +13,14 @@ async function fetchAPI(endpoint) {
       ...getAuthHeaders()
     }
   });
-  if (!res.ok) throw new Error(`API Error: ${res.statusText}`);
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const body = await res.json();
+      if (body.detail) detail = body.detail;
+    } catch (_) {}
+    throw new Error(`API Error: ${detail}`);
+  }
   return await res.json();
 }
 

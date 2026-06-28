@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..database import SessionLocal
 from .. import models
@@ -42,8 +42,8 @@ def get_sessions(db: Session = Depends(get_db), admin: models.User = Depends(che
         if s.logout_time:
             duration = int((s.logout_time - s.login_time).total_seconds())
         else:
-            # If active, calculate till now
-            duration = int((datetime.utcnow() - s.login_time).total_seconds())
+            # If active, calculate till now (use timezone-aware UTC)
+            duration = int((datetime.now(timezone.utc).replace(tzinfo=None) - s.login_time).total_seconds())
 
         pages = []
         try:
@@ -51,11 +51,15 @@ def get_sessions(db: Session = Depends(get_db), admin: models.User = Depends(che
         except Exception:
             pages = []
 
+        # Append +00:00 so JavaScript knows these are UTC timestamps
+        login_iso = (s.login_time.isoformat() + "+00:00") if s.login_time else None
+        logout_iso = (s.logout_time.isoformat() + "+00:00") if s.logout_time else None
+
         enriched.append({
             "id": s.id,
             "name": s.name,
-            "login_time": s.login_time.isoformat() if s.login_time else None,
-            "logout_time": s.logout_time.isoformat() if s.logout_time else None,
+            "login_time": login_iso,
+            "logout_time": logout_iso,
             "ip_address": s.ip_address,
             "user_agent": s.user_agent,
             "location": s.location,
