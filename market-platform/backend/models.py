@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, Boolean, DateTime, Text
+from sqlalchemy import Column, Integer, String, Float, Date, Boolean, DateTime, Text, ForeignKey
 from .database import Base
 
 class Stock(Base):
@@ -95,7 +95,8 @@ class NewsArticle(Base):
 class PortfolioItem(Base):
     __tablename__ = "portfolio_items"
     id = Column(Integer, primary_key=True, index=True)
-    ticker = Column(String, unique=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True) # Nullable for guest/backward compatibility
+    ticker = Column(String, index=True)
     quantity = Column(Float)
     buy_price = Column(Float)
     added_at = Column(DateTime)
@@ -107,3 +108,24 @@ class Alert(Base):
     level = Column(String) # INFO, WARN, SUCCESS
     is_read = Column(Boolean, default=False)
     created_at = Column(DateTime, index=True)
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    google_sub = Column(String, unique=True, index=True, nullable=True)
+    email = Column(String, unique=True, index=True, nullable=True)
+    name = Column(String)
+    picture = Column(String, nullable=True)
+    is_admin = Column(Boolean, default=False)
+
+class UserSession(Base):
+    __tablename__ = "user_sessions"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    name = Column(String, nullable=True) # For guest users
+    login_time = Column(DateTime)
+    logout_time = Column(DateTime, nullable=True)
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    location = Column(String, nullable=True)
+    pages_visited = Column(Text, default="[]") # JSON list of strings

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
-import { Activity, Bell } from 'lucide-react';
+import { Activity, Bell, Menu, X } from 'lucide-react';
 import NavSidebar from './components/NavSidebar';
 import ParticleField from './components/ParticleField';
 import LiveTicker from './components/LiveTicker';
@@ -9,8 +9,11 @@ import PageTransition from './components/PageTransition';
 import { StatusIndicator } from './components/HUDElements';
 import { fetchMarketSummary, fetchAlerts } from './api/client';
 import { useMouseParallax } from './hooks/useMouseParallax';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 // Pages
+import LoginPage from './pages/LoginPage';
+import AdminPanel from './pages/AdminPanel';
 import MarketOverview from './pages/Overview';
 import SectorIntelligence from './pages/SectorIntelligence';
 import RelationshipDiscovery from './pages/RelationshipDiscovery';
@@ -19,6 +22,14 @@ import PredictionEngine from './pages/PredictionEngine';
 import MarketScreener from './pages/MarketScreener';
 import TopMovers from './pages/TopMovers';
 import PortfolioTracker from './pages/PortfolioTracker';
+
+function AdminRoute({ children }) {
+  const { user } = useAuth();
+  if (!user || !user.is_admin) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+}
 
 function AnimatedRoutes({ lastRefresh }) {
   const location = useLocation();
@@ -35,20 +46,29 @@ function AnimatedRoutes({ lastRefresh }) {
           <Route path="/relationships" element={<RelationshipDiscovery lastRefresh={lastRefresh} />} />
           <Route path="/screener" element={<MarketScreener lastRefresh={lastRefresh} />} />
           <Route path="/portfolio" element={<PortfolioTracker lastRefresh={lastRefresh} />} />
+          <Route path="/admin" element={
+            <AdminRoute>
+              <AdminPanel />
+            </AdminRoute>
+          } />
         </Routes>
       </PageTransition>
     </AnimatePresence>
   );
 }
 
-export default function App() {
+function MainAppContent() {
+  const { user, token } = useAuth();
   const [showNotifs, setShowNotifs] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [marketInfo, setMarketInfo] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const { parallaxStyle, rotateStyle } = useMouseParallax(0.015);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
+    if (!token) return;
+
     const fetchSummary = () => {
       fetchMarketSummary().then(data => setMarketInfo(data)).catch(err => console.error(err));
       fetchAlerts().then(data => setAlerts(data)).catch(err => console.error(err));
@@ -59,7 +79,7 @@ export default function App() {
       fetchSummary();
     }, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [token]);
 
   const formatTime = (d) => {
     if (!d) return '';
@@ -73,6 +93,10 @@ export default function App() {
     const timePart = d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
     return `${datePart}, ${timePart}`;
   };
+
+  if (!token) {
+    return <LoginPage />;
+  }
 
   return (
     <Router>
@@ -92,7 +116,7 @@ export default function App() {
           style={{ background: 'radial-gradient(circle, rgba(168, 85, 247, 0.03) 0%, transparent 70%)', ...parallaxStyle }} />
 
         {/* Layer 2: Sidebar */}
-        <NavSidebar />
+        <NavSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
         {/* Layer 3: Main Content */}
         <main className="flex-1 overflow-hidden relative z-10 flex flex-col">
@@ -100,7 +124,7 @@ export default function App() {
           <LiveTicker />
 
           {/* Top Bar */}
-          <div className="flex items-center justify-between px-6 py-2.5 relative z-20"
+          <div className="flex items-center justify-between px-4 md:px-6 py-2.5 relative z-20"
             style={{
               background: 'linear-gradient(90deg, rgba(2, 6, 23, 0.8), rgba(15, 23, 42, 0.6))',
               borderBottom: '1px solid rgba(0, 240, 255, 0.04)',
@@ -109,6 +133,14 @@ export default function App() {
           >
             {/* Status Pills */}
             <div className="flex items-center gap-3">
+              {/* Mobile menu toggle */}
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="md:hidden p-1.5 rounded-xl border border-slate-800 bg-slate-950/60 text-slate-400 hover:text-white transition-all cursor-pointer"
+              >
+                {isSidebarOpen ? <X size={16} /> : <Menu size={16} />}
+              </button>
+
               {marketInfo?.data_date && (
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
                   style={{
@@ -203,7 +235,7 @@ export default function App() {
           </div>
 
           {/* Page Content */}
-          <div className="flex-1 overflow-auto p-6 max-w-[1600px] mx-auto w-full">
+          <div className="flex-1 overflow-auto p-4 md:p-6 max-w-[1600px] mx-auto w-full">
             <AnimatedRoutes lastRefresh={lastRefresh} />
           </div>
 
@@ -244,5 +276,13 @@ export default function App() {
         ))}
       </div>
     </Router>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainAppContent />
+    </AuthProvider>
   );
 }

@@ -5,8 +5,8 @@ from contextlib import asynccontextmanager
 import threading
 import os
 
-from .database import engine, Base, SessionLocal
-from .api import sector, stocks, relationships, opportunity, predict, market, portfolio, alerts, news, backtest
+from .database import Base, engine, SessionLocal
+from .api import sector, stocks, relationships, opportunity, predict, market, portfolio, alerts, news, backtest, auth, admin
 
 # Create DB tables if they don't exist
 Base.metadata.create_all(bind=engine)
@@ -53,6 +53,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
+app.include_router(admin.router)
 app.include_router(sector.router)
 app.include_router(stocks.router)
 app.include_router(relationships.router)

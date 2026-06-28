@@ -4,6 +4,7 @@ from datetime import datetime
 from ..database import get_db
 from .. import models
 from pydantic import BaseModel
+from .auth import get_current_user_or_session
 
 router = APIRouter(prefix="/api/portfolio", tags=["Portfolio"])
 
@@ -13,8 +14,9 @@ class PortfolioItemCreate(BaseModel):
     buy_price: float
 
 @router.get("/")
-def get_portfolio(db: Session = Depends(get_db)):
-    items = db.query(models.PortfolioItem).all()
+def get_portfolio(db: Session = Depends(get_db), payload: dict = Depends(get_current_user_or_session)):
+    user_id = payload.get("user_id")
+    items = db.query(models.PortfolioItem).filter(models.PortfolioItem.user_id == user_id).all()
     results = []
     
     for item in items:
@@ -43,8 +45,13 @@ def get_portfolio(db: Session = Depends(get_db)):
     return results
 
 @router.post("/")
-def add_portfolio_item(item: PortfolioItemCreate, db: Session = Depends(get_db)):
-    existing = db.query(models.PortfolioItem).filter(models.PortfolioItem.ticker == item.ticker).first()
+def add_portfolio_item(item: PortfolioItemCreate, db: Session = Depends(get_db), payload: dict = Depends(get_current_user_or_session)):
+    user_id = payload.get("user_id")
+    existing = db.query(models.PortfolioItem).filter(
+        models.PortfolioItem.user_id == user_id,
+        models.PortfolioItem.ticker == item.ticker
+    ).first()
+    
     if existing:
         # Update existing
         total_qty = existing.quantity + item.quantity
@@ -56,6 +63,7 @@ def add_portfolio_item(item: PortfolioItemCreate, db: Session = Depends(get_db))
             db.delete(existing)
     else:
         new_item = models.PortfolioItem(
+            user_id=user_id,
             ticker=item.ticker,
             quantity=item.quantity,
             buy_price=item.buy_price,
@@ -67,8 +75,13 @@ def add_portfolio_item(item: PortfolioItemCreate, db: Session = Depends(get_db))
     return {"status": "success"}
 
 @router.delete("/{ticker}")
-def remove_portfolio_item(ticker: str, db: Session = Depends(get_db)):
-    item = db.query(models.PortfolioItem).filter(models.PortfolioItem.ticker == ticker).first()
+def remove_portfolio_item(ticker: str, db: Session = Depends(get_db), payload: dict = Depends(get_current_user_or_session)):
+    user_id = payload.get("user_id")
+    item = db.query(models.PortfolioItem).filter(
+        models.PortfolioItem.user_id == user_id,
+        models.PortfolioItem.ticker == ticker
+    ).first()
+    
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
         
