@@ -8,6 +8,7 @@ import { HoloLoader, StatusIndicator } from '../components/HUDElements';
 export default function PortfolioTracker({ lastRefresh }) {
   const [portfolio, setPortfolio] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [ticker, setTicker] = useState('');
   const [quantity, setQuantity] = useState('');
@@ -15,11 +16,17 @@ export default function PortfolioTracker({ lastRefresh }) {
   const [availableStocks, setAvailableStocks] = useState([]);
 
   const loadData = async () => {
+    setLoading(true);
+    setError('');
     try {
       const data = await fetchPortfolio();
-      setPortfolio(data);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+      setPortfolio(data || []);
+    } catch (err) {
+      console.error('Portfolio load error:', err);
+      setError(err.message || 'Failed to load portfolio. Please log in and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -74,12 +81,30 @@ export default function PortfolioTracker({ lastRefresh }) {
     }
   };
 
-  if (loading && portfolio.length === 0) return <HoloLoader />;
+  if (loading) return <HoloLoader />;
 
   const totalValue = portfolio.reduce((acc, p) => acc + (p.current_price * p.quantity), 0);
   const totalCost = portfolio.reduce((acc, p) => acc + (p.buy_price * p.quantity), 0);
   const totalPnl = totalValue - totalCost;
   const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
+
+  if (error) return (
+    <div className="space-y-6">
+      <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+          <span className="w-1 h-8 rounded-full" style={{ background: 'var(--neon-cyan)', boxShadow: '0 0 10px var(--neon-cyan)' }} />
+          Portfolio Room
+        </h1>
+        <p className="text-slate-500 mt-1 text-sm ml-4">Manage holdings and track performance</p>
+      </motion.div>
+      <div className="p-5 rounded-xl flex items-center gap-3 text-red-400 text-sm font-medium"
+        style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.15)' }}>
+        <TrendingDown size={18} />
+        {error}
+        <button onClick={loadData} className="ml-auto neon-btn text-xs" style={{ borderColor: 'rgba(239,68,68,0.2)', color: '#f87171' }}>Retry</button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6">

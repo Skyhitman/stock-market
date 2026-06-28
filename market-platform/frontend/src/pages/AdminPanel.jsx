@@ -39,13 +39,16 @@ export default function AdminPanel() {
 
   const formatDateTime = (dtStr) => {
     if (!dtStr) return 'Active';
+    // Backend stores UTC — convert to IST (UTC+5:30)
     const d = new Date(dtStr);
     return d.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
-    });
+      minute: '2-digit',
+      hour12: true
+    }) + ' IST';
   };
 
   const parseUA = (ua) => {
