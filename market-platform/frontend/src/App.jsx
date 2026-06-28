@@ -88,10 +88,11 @@ function MainAppContent() {
 
   const formatDateTimeString = (dtStr) => {
     if (!dtStr) return '';
+    // Backend stores UTC — convert to IST (UTC+5:30)
     const d = new Date(dtStr);
-    const datePart = d.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' });
-    const timePart = d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
-    return `${datePart}, ${timePart}`;
+    const datePart = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: 'short', day: 'numeric' });
+    const timePart = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+    return `${datePart}, ${timePart} IST`;
   };
 
   if (!token) {

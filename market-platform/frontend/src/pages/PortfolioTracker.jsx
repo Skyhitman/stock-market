@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Briefcase, Plus, Trash2, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { Briefcase, Plus, Trash2, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fetchPortfolio, addPortfolioItem, removePortfolioItem, fetchScreener } from '../api/client';
 import GlassCard from '../components/GlassCard';
-import { HoloLoader, StatusIndicator } from '../components/HUDElements';
+import { HoloLoader } from '../components/HUDElements';
 
 export default function PortfolioTracker({ lastRefresh }) {
   const [portfolio, setPortfolio] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true); // full-screen loader, first load only
+  const [saving, setSaving] = useState(false);                 // inline spinner for add/remove
   const [error, setError] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [ticker, setTicker] = useState('');
@@ -15,8 +16,20 @@ export default function PortfolioTracker({ lastRefresh }) {
   const [buyPrice, setBuyPrice] = useState('');
   const [availableStocks, setAvailableStocks] = useState([]);
 
+  // Silent refresh — never shows full-screen loader (used after add/remove)
+  const refreshPortfolio = async () => {
+    try {
+      const data = await fetchPortfolio();
+      setPortfolio(data || []);
+      setError('');
+    } catch (err) {
+      console.error('Portfolio refresh error:', err);
+      setError(err.message || 'Failed to load portfolio.');
+    }
+  };
+
+  // Initial load — shows full-screen loader only when portfolio is empty
   const loadData = async () => {
-    setLoading(true);
     setError('');
     try {
       const data = await fetchPortfolio();
@@ -25,7 +38,7 @@ export default function PortfolioTracker({ lastRefresh }) {
       console.error('Portfolio load error:', err);
       setError(err.message || 'Failed to load portfolio. Please log in and try again.');
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
     }
   };
 
@@ -50,7 +63,7 @@ export default function PortfolioTracker({ lastRefresh }) {
   const handleAdd = async (e) => {
     e.preventDefault();
     if (!ticker || !quantity || !buyPrice) return;
-    setLoading(true);
+    setSaving(true);
     try {
       await addPortfolioItem({ 
         ticker: ticker.toUpperCase(), 
@@ -61,34 +74,36 @@ export default function PortfolioTracker({ lastRefresh }) {
       setQuantity(''); 
       setBuyPrice(''); 
       setShowAddForm(false);
-      await loadData();
+      await refreshPortfolio();
     } catch (err) {
       console.error(err);
       alert(err.message || 'Failed to add portfolio item');
-      setLoading(false);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleRemove = async (t) => { 
-    setLoading(true); 
+    setSaving(true); 
     try {
       await removePortfolioItem(t); 
-      await loadData(); 
+      await refreshPortfolio(); 
     } catch (err) {
       console.error(err);
       alert(err.message || 'Failed to remove portfolio item');
-      setLoading(false);
+    } finally {
+      setSaving(false);
     }
   };
 
-  if (loading) return <HoloLoader />;
+  if (initialLoading) return <HoloLoader />;
 
   const totalValue = portfolio.reduce((acc, p) => acc + (p.current_price * p.quantity), 0);
   const totalCost = portfolio.reduce((acc, p) => acc + (p.buy_price * p.quantity), 0);
   const totalPnl = totalValue - totalCost;
   const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
 
-  if (error) return (
+  if (error && portfolio.length === 0) return (
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
         <h1 className="text-3xl font-bold text-white flex items-center gap-3">
@@ -145,8 +160,11 @@ export default function PortfolioTracker({ lastRefresh }) {
       {/* Holdings Table */}
       <GlassCard delay={0.3} hover={false} glow="purple">
         <div className="flex justify-between items-center mb-6 px-1">
-          <h2 className="text-lg font-bold text-white">Holdings</h2>
-          <button onClick={() => setShowAddForm(!showAddForm)} className="neon-btn flex items-center gap-2">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            Holdings
+            {saving && <RefreshCw size={13} className="animate-spin text-cyan-400" />}
+          </h2>
+          <button onClick={() => setShowAddForm(!showAddForm)} disabled={saving} className="neon-btn flex items-center gap-2" style={{ opacity: saving ? 0.5 : 1 }}>
             <Plus size={15} /> Add Holding
           </button>
         </div>
@@ -178,8 +196,10 @@ export default function PortfolioTracker({ lastRefresh }) {
                   className="neon-input w-full" placeholder="3500.50" required />
               </div>
               <div className="flex gap-2">
-                <button type="submit" className="neon-btn flex-1" style={{ background: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.2)', color: '#10b981' }}>Save</button>
-                <button type="button" onClick={() => setShowAddForm(false)} className="neon-btn flex-1" style={{ borderColor: 'rgba(100,116,139,0.2)', color: '#94a3b8' }}>Cancel</button>
+                <button type="submit" disabled={saving} className="neon-btn flex-1 flex items-center justify-center gap-1.5" style={{ background: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.2)', color: '#10b981', opacity: saving ? 0.6 : 1 }}>
+                  {saving ? <><RefreshCw size={12} className="animate-spin" /> Saving…</> : 'Save'}
+                </button>
+                <button type="button" disabled={saving} onClick={() => setShowAddForm(false)} className="neon-btn flex-1" style={{ borderColor: 'rgba(100,116,139,0.2)', color: '#94a3b8', opacity: saving ? 0.5 : 1 }}>Cancel</button>
               </div>
             </motion.form>
           )}
