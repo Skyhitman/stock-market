@@ -87,12 +87,18 @@ export const addPortfolioItem = (data) => fetch(`${API_BASE}/portfolio/`, {
     ...getAuthHeaders()
   },
   body: JSON.stringify(data)
+}).then(res => {
+  if (!res.ok) throw new Error('Failed to add portfolio item');
+  return res.json();
 });
 export const removePortfolioItem = (ticker) => fetch(`${API_BASE}/portfolio/${ticker}`, {
   method: 'DELETE',
   headers: {
     ...getAuthHeaders()
   }
+}).then(res => {
+  if (!res.ok) throw new Error('Failed to remove portfolio item');
+  return res.json();
 });
 
 // Backtest

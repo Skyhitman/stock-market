@@ -25,7 +25,11 @@ export default function PortfolioTracker({ lastRefresh }) {
   useEffect(() => {
     loadData();
     fetchScreener().then(data => {
-      setAvailableStocks(data.map(s => ({ ticker: s.ticker.replace('.NS', ''), price: s.close || 0 })));
+      setAvailableStocks(data.map(s => ({ 
+        ticker: s.ticker, 
+        displayTicker: s.ticker.replace('.NS', ''), 
+        price: s.close || 0 
+      })));
     }).catch(console.error);
   }, [lastRefresh]);
 
@@ -40,12 +44,35 @@ export default function PortfolioTracker({ lastRefresh }) {
     e.preventDefault();
     if (!ticker || !quantity || !buyPrice) return;
     setLoading(true);
-    await addPortfolioItem({ ticker: ticker.toUpperCase(), quantity: parseFloat(quantity), buy_price: parseFloat(buyPrice) });
-    setTicker(''); setQuantity(''); setBuyPrice(''); setShowAddForm(false);
-    await loadData();
+    try {
+      await addPortfolioItem({ 
+        ticker: ticker.toUpperCase(), 
+        quantity: parseFloat(quantity), 
+        buy_price: parseFloat(buyPrice) 
+      });
+      setTicker(''); 
+      setQuantity(''); 
+      setBuyPrice(''); 
+      setShowAddForm(false);
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to add portfolio item');
+      setLoading(false);
+    }
   };
 
-  const handleRemove = async (t) => { setLoading(true); await removePortfolioItem(t); await loadData(); };
+  const handleRemove = async (t) => { 
+    setLoading(true); 
+    try {
+      await removePortfolioItem(t); 
+      await loadData(); 
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to remove portfolio item');
+      setLoading(false);
+    }
+  };
 
   if (loading && portfolio.length === 0) return <HoloLoader />;
 
@@ -112,7 +139,7 @@ export default function PortfolioTracker({ lastRefresh }) {
                 <select value={ticker} onChange={e => handleTickerChange(e.target.value)}
                   className="neon-input w-full cursor-pointer" required>
                   <option value="" disabled>Select a stock</option>
-                  {availableStocks.map(s => <option key={s.ticker} value={s.ticker}>{s.ticker}</option>)}
+                  {availableStocks.map(s => <option key={s.ticker} value={s.ticker}>{s.displayTicker}</option>)}
                 </select>
               </div>
               <div>
