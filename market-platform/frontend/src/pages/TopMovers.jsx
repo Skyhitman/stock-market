@@ -41,22 +41,29 @@ export default function TopMovers({ lastRefresh }) {
       <div className="grid grid-cols-4 gap-2 mt-4 pt-4 border-t border-slate-800/50">
         <div>
           <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest mb-1">High</p>
-          <p className="text-xs text-emerald-400 font-mono">₹{stock.high ? stock.high.toFixed(2) : 'N/A'}</p>
+          <p className="text-xs text-emerald-400 font-mono">₹{stock.high ? stock.high.toFixed(2) : '-'}</p>
         </div>
         <div>
           <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest mb-1">Low</p>
-          <p className="text-xs text-red-400 font-mono">₹{stock.low ? stock.low.toFixed(2) : 'N/A'}</p>
+          <p className="text-xs text-red-400 font-mono">₹{stock.low ? stock.low.toFixed(2) : '-'}</p>
         </div>
         <div>
           <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest mb-1">Volume</p>
-          <p className="text-xs text-slate-300 font-mono">{stock.volume ? (stock.volume / 1000000).toFixed(2) + 'M' : 'N/A'}</p>
+          <p className="text-xs text-slate-300 font-mono">{stock.volume ? (stock.volume / 1000000).toFixed(2) + 'M' : '-'}</p>
         </div>
-        <div>
-          <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest mb-1">RSI / Vol</p>
-          <p className="text-xs text-slate-300 font-mono">
-            {stock.rsi ? stock.rsi.toFixed(0) : 'N/A'} / {stock.volatility ? (stock.volatility * 100).toFixed(0) + '%' : 'N/A'}
-          </p>
-        </div>
+        {stock.rsi ? (
+          <div>
+            <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest mb-1">RSI / Vol</p>
+            <p className="text-xs text-slate-300 font-mono">
+              {stock.rsi.toFixed(0)} / {stock.volatility ? (stock.volatility * 100).toFixed(0) + '%' : '-'}
+            </p>
+          </div>
+        ) : (
+          <div>
+            <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest mb-1">Coverage</p>
+            <p className="text-xs text-indigo-400 font-mono font-bold">Global Market</p>
+          </div>
+        )}
       </div>
     </GlassCard>
   );

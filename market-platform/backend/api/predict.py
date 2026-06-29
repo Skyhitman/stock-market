@@ -9,26 +9,30 @@ router = APIRouter(prefix="/api/predict", tags=["Predict"])
 @router.get("/all")
 def get_all_predictions(db: Session = Depends(get_db)):
     """Get the latest predictions for all stocks."""
-    latest = db.query(models.Prediction).order_by(models.Prediction.date.desc()).first()
-    if not latest:
+    stocks = db.query(models.Stock).all()
+    if not stocks:
         return []
-
-    preds = db.query(models.Prediction).filter(
-        models.Prediction.date == latest.date
-    ).all()
-
+        
     data_info = get_data_date_info(db)
-
     results = []
-    for p in preds:
-        stock = db.query(models.Stock).filter(models.Stock.ticker == p.ticker).first()
+    
+    for stock in stocks:
+        p = db.query(models.Prediction).filter(
+            models.Prediction.ticker == stock.ticker
+        ).order_by(models.Prediction.date.desc()).first()
+        
+        if not p:
+            continue
+            
         import json
         try:
             shap_data = json.loads(p.shap_json) if p.shap_json else []
         except (json.JSONDecodeError, TypeError):
             shap_data = []
 
-        price = db.query(models.DailyPrice).filter(models.DailyPrice.ticker == p.ticker).order_by(models.DailyPrice.date.desc()).first()
+        price = db.query(models.DailyPrice).filter(
+            models.DailyPrice.ticker == p.ticker
+        ).order_by(models.DailyPrice.date.desc()).first()
         actual_close = price.close if price else None
 
         results.append({
@@ -49,19 +53,21 @@ def get_all_predictions(db: Session = Depends(get_db)):
 @router.get("/sectors")
 def get_sector_predictions(db: Session = Depends(get_db)):
     """Aggregates individual stock predictions to predict sector movements."""
-    latest = db.query(models.Prediction).order_by(models.Prediction.date.desc()).first()
-    if not latest:
+    stocks = db.query(models.Stock).all()
+    if not stocks:
         return []
-
-    preds = db.query(models.Prediction).filter(
-        models.Prediction.date == latest.date
-    ).all()
-
+        
     from collections import defaultdict
     sector_data = defaultdict(lambda: {"bullish": 0, "total": 0, "confidence_sum": 0.0})
 
-    for p in preds:
-        stock = db.query(models.Stock).filter(models.Stock.ticker == p.ticker).first()
+    for stock in stocks:
+        p = db.query(models.Prediction).filter(
+            models.Prediction.ticker == stock.ticker
+        ).order_by(models.Prediction.date.desc()).first()
+        
+        if not p:
+            continue
+            
         sector = stock.sector if stock else "Unknown"
         
         sector_data[sector]["total"] += 1

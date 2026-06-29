@@ -8,21 +8,26 @@ router = APIRouter(prefix="/api/opportunity", tags=["Opportunity"])
 
 @router.get("/rankings")
 def get_opportunity_rankings(db: Session = Depends(get_db)):
-    latest = db.query(models.OpportunityScore).order_by(models.OpportunityScore.date.desc()).first()
-    if not latest:
+    stocks = db.query(models.Stock).all()
+    if not stocks:
         return []
         
-    scores = db.query(models.OpportunityScore).filter(models.OpportunityScore.date == latest.date).order_by(models.OpportunityScore.score.desc()).all()
-    
     data_info = get_data_date_info(db)
-
     result = []
-    for i, s in enumerate(scores, 1):
-        stock = db.query(models.Stock).filter(models.Stock.ticker == s.ticker).first()
-        feat = db.query(models.StockFeature).filter(models.StockFeature.ticker == s.ticker, models.StockFeature.date == s.date).first()
+    
+    for stock in stocks:
+        s = db.query(models.OpportunityScore).filter(
+            models.OpportunityScore.ticker == stock.ticker
+        ).order_by(models.OpportunityScore.date.desc()).first()
+        
+        if not s:
+            continue
+            
+        feat = db.query(models.StockFeature).filter(
+            models.StockFeature.ticker == stock.ticker
+        ).order_by(models.StockFeature.date.desc()).first()
         
         result.append({
-            "rank": i,
             "ticker": s.ticker,
             "sector": stock.sector if stock else "Unknown",
             "score": s.score,
@@ -35,4 +40,10 @@ def get_opportunity_rankings(db: Session = Depends(get_db)):
             "date": data_info["trading_date"],
             "last_updated": data_info["last_updated"],
         })
+        
+    # Sort by score descending and assign rank
+    result = sorted(result, key=lambda x: x["score"], reverse=True)
+    for i, r in enumerate(result, 1):
+        r["rank"] = i
+        
     return result
