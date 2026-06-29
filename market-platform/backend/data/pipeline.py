@@ -519,6 +519,20 @@ def run_live_update():
         opps = [{"ticker": o.ticker, "score": o.score} for o in db.query(OpportunityScore).all()]
         generate_alerts(db, ranked, opps)
         
+        # Re-run predictions with updated features so all pages stay in sync
+        if all_features:
+            latest_rows = []
+            for ticker, feat_df in all_features.items():
+                row = feat_df.iloc[-1:].copy()
+                row["ticker"] = ticker
+                latest_rows.append(row)
+            if latest_rows:
+                latest_df = pd.concat(latest_rows, ignore_index=True)
+                preds = predict_next_day(latest_df)
+                if preds:
+                    store_predictions(db, preds)
+                    print(f"[Pipeline] Refreshed {len(preds)} predictions")
+        
         db.commit()
         print(f"[Pipeline] Live update complete at {datetime.now()}")
 
