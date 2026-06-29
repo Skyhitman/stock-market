@@ -27,14 +27,15 @@ def _seed_in_background():
     """Run seed in a background thread so the server starts immediately."""
     db = SessionLocal()
     try:
-        from .data.pipeline import is_db_seeded, run_full_seed
+        from .data.pipeline import is_db_seeded, run_full_seed, run_live_update
         if not is_db_seeded(db):
             print("[Startup] Database is empty — running initial seed in background...")
             db.close()
             run_full_seed()
         else:
-            print("[Startup] Database already seeded, skipping initial load.")
+            print("[Startup] Database already seeded. Running live update to catch up on latest data...")
             db.close()
+            run_live_update()
     except Exception as e:
         print(f"[Startup] Seed error: {e}")
         db.close()
