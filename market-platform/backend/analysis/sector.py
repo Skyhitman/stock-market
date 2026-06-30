@@ -48,6 +48,11 @@ def calculate_sector_metrics(stocks_df: pd.DataFrame, nifty_return: float) -> di
         0.10 * breadth
     )
     
+    # CRITICAL FILTER: If the sector is down today, cap its strength score to 40
+    # This prevents red sectors from showing up as top performers
+    if sector_return < 0:
+        strength_score = min(strength_score, 40)
+    
     return {
         "sector_return": sector_return,
         "sector_momentum": sector_momentum,
