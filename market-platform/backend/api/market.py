@@ -9,6 +9,16 @@ from .. import models
 
 router = APIRouter(prefix="/api/market", tags=["Market"])
 
+@router.post("/force-refresh")
+def force_refresh_market_data():
+    """Forces a synchronous live market update."""
+    try:
+        from ..data.pipeline import run_live_update
+        run_live_update()
+        return {"status": "success", "message": "Market data refreshed successfully"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @router.get("/summary")
 def get_market_summary(db: Session = Depends(get_db)):
     # Top sector

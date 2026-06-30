@@ -66,6 +66,12 @@ export const fetchAdminStats = () => fetchAPI('/admin/stats');
 // Market Overview
 export const fetchMarketSummary = () => fetchAPI('/market/summary');
 export const fetchMarketMovers = () => fetchAPI('/market/movers');
+export const forceRefreshMarket = () => fetch(`${API_BASE}/market/force-refresh`, {
+  method: 'POST',
+  headers: {
+    ...getAuthHeaders()
+  }
+}).then(res => res.json());
 
 // Sectors
 export const fetchSectorRankings = () => fetchAPI('/sector/rankings');

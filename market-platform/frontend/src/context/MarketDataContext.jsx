@@ -12,7 +12,8 @@ import {
   fetchLeaders,
   fetchCorrelationHeatmap,
   fetchNetworkGraph,
-  fetchAlerts
+  fetchAlerts,
+  forceRefreshMarket
 } from '../api/client';
 import { useAuth } from './AuthContext';
 
@@ -43,6 +44,10 @@ export function MarketDataProvider({ children }) {
     if (!token) return;
     setData(prev => ({ ...prev, loading: !!prev.lastFetchTime ? false : true, error: null }));
     try {
+      // 1. Force the backend to update its database synchronously
+      await forceRefreshMarket();
+      
+      // 2. Fetch the newly updated data
       const [
         summaryRes,
         alertsRes,
