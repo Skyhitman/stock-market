@@ -1,37 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import { BrainCircuit, AlertTriangle, Sparkles, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { fetchPredictions, fetchSectorPredictions, fetchStocksOverview } from '../api/client';
+import { useMarketData } from '../context/MarketDataContext';
 import GlassCard from '../components/GlassCard';
 import { HoloLoader, StatusIndicator } from '../components/HUDElements';
 
-export default function PredictionEngine({ lastRefresh }) {
-  const [predictions, setPredictions] = useState([]);
-  const [sectorPreds, setSectorPreds] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function PredictionEngine() {
+  const { predictions, sectorPredictions: sectorPreds, stocksOverview: overviewData, loading } = useMarketData();
   const [selectedTicker, setSelectedTicker] = useState(null);
   const [activeTab, setActiveTab] = useState('stock');
   const [availableStocks, setAvailableStocks] = useState([]);
 
   useEffect(() => {
-    Promise.all([fetchPredictions(), fetchSectorPredictions(), fetchStocksOverview()])
-      .then(([stockData, sectorData, overviewData]) => {
-        setPredictions(stockData);
-        setSectorPreds(sectorData);
-        let tickers = [...stockData.map(p => p.ticker)];
-        if (overviewData) {
-          overviewData.forEach(s => { if (!tickers.includes(s.ticker)) tickers.push(s.ticker); });
-        }
-        setAvailableStocks(tickers);
-        if (stockData.length > 0) setSelectedTicker(stockData[0].ticker);
-        setLoading(false);
-      })
-      .catch(err => { console.error(err); setLoading(false); });
-  }, [lastRefresh]);
+    let tickers = [...(predictions || []).map(p => p.ticker)];
+    if (overviewData) {
+      overviewData.forEach(s => { if (!tickers.includes(s.ticker)) tickers.push(s.ticker); });
+    }
+    setAvailableStocks(tickers);
+    if (predictions && predictions.length > 0 && !selectedTicker) {
+      setSelectedTicker(predictions[0].ticker);
+    }
+  }, [predictions, overviewData, selectedTicker]);
 
-  if (loading) return <HoloLoader />;
+  if (loading && (!predictions || predictions.length === 0)) return <HoloLoader />;
 
-  const selectedPred = predictions.find(p => p.ticker === selectedTicker);
+  const selectedPred = (predictions || []).find(p => p.ticker === selectedTicker);
 
   return (
     <div className="space-y-6">

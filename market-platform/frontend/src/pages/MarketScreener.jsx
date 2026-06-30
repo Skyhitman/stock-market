@@ -1,25 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Search, ArrowUpDown, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { fetchScreener } from '../api/client';
+import { useMarketData } from '../context/MarketDataContext';
 import GlassCard from '../components/GlassCard';
 import { HoloLoader, StatusIndicator } from '../components/HUDElements';
 
-export default function MarketScreener({ lastRefresh }) {
-  const [stocks, setStocks] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function MarketScreener() {
+  const { screener: stocks, loading } = useMarketData();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [sortKey, setSortKey] = useState('return_pct');
   const [sortDir, setSortDir] = useState('desc');
 
-  useEffect(() => {
-    fetchScreener()
-      .then(data => { setStocks(data); setLoading(false); })
-      .catch(err => { console.error(err); setLoading(false); });
-  }, [lastRefresh]);
-
-  if (loading) return <HoloLoader />;
+  if (loading && (!stocks || stocks.length === 0)) return <HoloLoader />;
 
   const gainersCount = stocks.filter(s => s.return_pct > 0).length;
   const losersCount = stocks.filter(s => s.return_pct < 0).length;

@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { TrendingUp, TrendingDown, Shield } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { motion } from 'framer-motion';
-import { fetchSectorRankings, fetchSectorHistory } from '../api/client';
+import { useMarketData } from '../context/MarketDataContext';
 import GlassCard from '../components/GlassCard';
 import { HoloLoader, StatusIndicator } from '../components/HUDElements';
 
@@ -16,22 +16,10 @@ const SECTOR_COLORS = {
   Metals: '#00f0ff'
 };
 
-export default function SectorIntelligence({ lastRefresh }) {
-  const [sectors, setSectors] = useState([]);
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function SectorIntelligence() {
+  const { sectorRankings: sectors, sectorHistory: history, loading } = useMarketData();
 
-  useEffect(() => {
-    Promise.all([fetchSectorRankings(), fetchSectorHistory(30)])
-      .then(([rankData, histData]) => {
-        setSectors(rankData);
-        setHistory(histData.length > 0 ? histData : []);
-        setLoading(false);
-      })
-      .catch(err => { console.error(err); setLoading(false); });
-  }, [lastRefresh]);
-
-  if (loading) return <HoloLoader />;
+  if (loading && (!sectors || sectors.length === 0)) return <HoloLoader />;
 
   return (
     <div className="space-y-6">

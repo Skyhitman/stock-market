@@ -2,46 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { TrendingUp, TrendingDown, AlertTriangle, Activity, Shield, Heart, Zap, ChevronRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts';
 import { motion } from 'framer-motion';
-import { fetchMarketSummary, fetchSectorRankings, fetchOpportunityRankings } from '../api/client';
+import { useMarketData } from '../context/MarketDataContext';
 import GlassCard from '../components/GlassCard';
 import HoloGlobe from '../components/HoloGlobe';
 import { HoloLoader, StatusIndicator, DataReadout } from '../components/HUDElements';
 
-const REFRESH_INTERVAL = 5 * 60 * 1000;
+export default function Overview() {
+  const { summary, sectorRankings, opportunityRankings, loading, error } = useMarketData();
 
-export default function Overview({ lastRefresh }) {
-  const [summary, setSummary] = useState(null);
-  const [sectors, setSectors] = useState([]);
-  const [topStocks, setTopStocks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  if (loading && !summary) return <HoloLoader />;
 
-  const fetchData = async () => {
-    try {
-      const [summaryData, sectorData, oppData] = await Promise.all([
-        fetchMarketSummary(),
-        fetchSectorRankings(),
-        fetchOpportunityRankings(),
-      ]);
-      setSummary(summaryData);
-      setSectors(sectorData.map(s => ({ name: s.sector, score: Math.round(s.strength_score || s.score || 0) })));
-      setTopStocks(oppData.slice(0, 4));
-      setError(null);
-    } catch (err) {
-      console.error('Failed to fetch market data:', err);
-      setError('Data is loading... The initial seed takes 1-2 minutes.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, REFRESH_INTERVAL);
-    return () => clearInterval(interval);
-  }, [lastRefresh]);
-
-  if (loading) return <HoloLoader />;
+  const sectors = (sectorRankings || []).map(s => ({ name: s.sector, score: Math.round(s.strength_score || s.score || 0) }));
+  const topStocks = (opportunityRankings || []).slice(0, 4);
 
   if (error && !summary) {
     return (

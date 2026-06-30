@@ -133,6 +133,17 @@ def _yahoo_quote_to_stock(quote: dict) -> dict:
         "return_pct": round(change_pct, 2),
     }
 
+def _is_valid_stock(quote: dict) -> bool:
+    """Filter out ETFs, unlisted, and low liquidity/junk stocks."""
+    if quote.get('regularMarketVolume', 0) < 1000:
+        return False
+    if quote.get('regularMarketChangePercent', 0) == 0:
+        return False
+    # If it has no high/low it's likely an ETF NAV or not trading
+    if quote.get('regularMarketDayHigh', 0) == 0 and quote.get('regularMarketDayLow', 0) == 0:
+        return False
+    return True
+
 
 @router.get("/movers")
 def get_market_movers(db: Session = Depends(get_db)):
@@ -142,17 +153,17 @@ def get_market_movers(db: Session = Depends(get_db)):
         cached = movers_cache[cache_key]
     else:
         # Fetch from Yahoo Finance India screeners (covers ALL Indian stocks)
-        gainers_raw = _fetch_yahoo_india_screener('day_gainers_in', count=10)
-        losers_raw = _fetch_yahoo_india_screener('day_losers_in', count=10)
+        gainers_raw = _fetch_yahoo_india_screener('day_gainers_in', count=25)
+        losers_raw = _fetch_yahoo_india_screener('day_losers_in', count=25)
         cached = (gainers_raw, losers_raw)
         if gainers_raw or losers_raw:
             movers_cache[cache_key] = cached
     
     gainers_raw, losers_raw = cached
     
-    # Convert Yahoo quotes to our format
-    gainers = [_yahoo_quote_to_stock(q) for q in gainers_raw]
-    losers = [_yahoo_quote_to_stock(q) for q in losers_raw]
+    # Convert Yahoo quotes to our format and filter out junk
+    gainers = [_yahoo_quote_to_stock(q) for q in gainers_raw if _is_valid_stock(q)][:10]
+    losers = [_yahoo_quote_to_stock(q) for q in losers_raw if _is_valid_stock(q)][:10]
     
     # Fallback to local DB screener if Yahoo returned nothing
     if not gainers or not losers:

@@ -1,22 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Flame, Skull, TrendingUp, TrendingDown } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { fetchMarketMovers } from '../api/client';
+import { useMarketData } from '../context/MarketDataContext';
 import GlassCard from '../components/GlassCard';
 import { HoloLoader, StatusIndicator } from '../components/HUDElements';
 
-export default function TopMovers({ lastRefresh }) {
-  const [gainers, setGainers] = useState([]);
-  const [losers, setLosers] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function TopMovers() {
+  const { movers, loading } = useMarketData();
 
-  useEffect(() => {
-    fetchMarketMovers()
-      .then(data => { setGainers(data.gainers || []); setLosers(data.losers || []); setLoading(false); })
-      .catch(err => { console.error(err); setLoading(false); });
-  }, [lastRefresh]);
+  if (loading && (!movers || !movers.gainers)) return <HoloLoader />;
 
-  if (loading) return <HoloLoader />;
+  const gainers = movers?.gainers || [];
+  const losers = movers?.losers || [];
 
   const StockCard = ({ stock, isGainer, index }) => (
     <GlassCard delay={index * 0.05} glow={isGainer ? 'green' : 'red'}>

@@ -1,26 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { fetchMarketMovers } from '../api/client';
+import React from 'react';
+import { useMarketData } from '../context/MarketDataContext';
 
 export default function LiveTicker() {
-  const [items, setItems] = useState([]);
-
-  useEffect(() => {
-    fetchMarketMovers()
-      .then(data => {
-        const all = [...(data.gainers || []), ...(data.losers || [])];
-        setItems(all.slice(0, 20));
-      })
-      .catch(() => {});
-    const interval = setInterval(() => {
-      fetchMarketMovers()
-        .then(data => {
-          const all = [...(data.gainers || []), ...(data.losers || [])];
-          setItems(all.slice(0, 20));
-        })
-        .catch(() => {});
-    }, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  const { movers } = useMarketData();
+  const items = [...(movers?.gainers || []), ...(movers?.losers || [])].slice(0, 20);
 
   if (items.length === 0) return null;
 

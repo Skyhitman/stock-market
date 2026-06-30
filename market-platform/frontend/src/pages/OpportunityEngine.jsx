@@ -1,26 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { Zap, Sparkles, TrendingUp, BarChart2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { fetchOpportunityRankings } from '../api/client';
+import { useMarketData } from '../context/MarketDataContext';
 import GlassCard from '../components/GlassCard';
 import { HoloLoader, StatusIndicator } from '../components/HUDElements';
 
-export default function OpportunityEngine({ lastRefresh }) {
-  const [opportunities, setOpportunities] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function OpportunityEngine() {
+  const { opportunityRankings: opportunities, loading } = useMarketData();
   const [selected, setSelected] = useState(null);
 
   useEffect(() => {
-    fetchOpportunityRankings()
-      .then(data => {
-        setOpportunities(data);
-        if (data.length > 0) setSelected(data[0]);
-        setLoading(false);
-      })
-      .catch(err => { console.error(err); setLoading(false); });
-  }, [lastRefresh]);
+    if (opportunities && opportunities.length > 0 && !selected) {
+      setSelected(opportunities[0]);
+    }
+  }, [opportunities, selected]);
 
-  if (loading) return <HoloLoader />;
+  if (loading && (!opportunities || opportunities.length === 0)) return <HoloLoader />;
 
   return (
     <div className="space-y-6">

@@ -10,6 +10,7 @@ import { StatusIndicator } from './components/HUDElements';
 import { fetchMarketSummary, fetchAlerts } from './api/client';
 import { useMouseParallax } from './hooks/useMouseParallax';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { MarketDataProvider, useMarketData } from './context/MarketDataContext';
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -31,21 +32,21 @@ function AdminRoute({ children }) {
   return children;
 }
 
-function AnimatedRoutes({ lastRefresh }) {
+function AnimatedRoutes() {
   const location = useLocation();
 
   return (
     <AnimatePresence mode="wait">
       <PageTransition key={location.pathname}>
         <Routes location={location}>
-          <Route path="/" element={<MarketOverview lastRefresh={lastRefresh} />} />
-          <Route path="/sectors" element={<SectorIntelligence lastRefresh={lastRefresh} />} />
-          <Route path="/movers" element={<TopMovers lastRefresh={lastRefresh} />} />
-          <Route path="/opportunity" element={<OpportunityEngine lastRefresh={lastRefresh} />} />
-          <Route path="/predict" element={<PredictionEngine lastRefresh={lastRefresh} />} />
-          <Route path="/relationships" element={<RelationshipDiscovery lastRefresh={lastRefresh} />} />
-          <Route path="/screener" element={<MarketScreener lastRefresh={lastRefresh} />} />
-          <Route path="/portfolio" element={<PortfolioTracker lastRefresh={lastRefresh} />} />
+          <Route path="/" element={<MarketOverview />} />
+          <Route path="/sectors" element={<SectorIntelligence />} />
+          <Route path="/movers" element={<TopMovers />} />
+          <Route path="/opportunity" element={<OpportunityEngine />} />
+          <Route path="/predict" element={<PredictionEngine />} />
+          <Route path="/relationships" element={<RelationshipDiscovery />} />
+          <Route path="/screener" element={<MarketScreener />} />
+          <Route path="/portfolio" element={<PortfolioTracker />} />
           <Route path="/admin" element={
             <AdminRoute>
               <AdminPanel />
@@ -60,26 +61,9 @@ function AnimatedRoutes({ lastRefresh }) {
 function MainAppContent() {
   const { user, token } = useAuth();
   const [showNotifs, setShowNotifs] = useState(false);
-  const [lastRefresh, setLastRefresh] = useState(new Date());
-  const [marketInfo, setMarketInfo] = useState(null);
-  const [alerts, setAlerts] = useState([]);
+  const { summary: marketInfo, alerts, lastFetchTime: lastRefresh, refreshNow, loading } = useMarketData();
   const { parallaxStyle, rotateStyle } = useMouseParallax(0.015);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  useEffect(() => {
-    if (!token) return;
-
-    const fetchSummary = () => {
-      fetchMarketSummary().then(data => setMarketInfo(data)).catch(err => console.error(err));
-      fetchAlerts().then(data => setAlerts(data)).catch(err => console.error(err));
-    };
-    fetchSummary();
-    const interval = setInterval(() => {
-      setLastRefresh(new Date());
-      fetchSummary();
-    }, 60000);
-    return () => clearInterval(interval);
-  }, [token]);
 
   const formatTime = (d) => {
     if (!d) return '';
@@ -164,17 +148,21 @@ function MainAppContent() {
                 >
                   <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
                   <span className="text-[10px] font-bold text-slate-400 tracking-wide">
-                    Updated: {formatDateTimeString(marketInfo.last_updated)}
+                    Updated: {marketInfo.last_updated}
                   </span>
                 </div>
               )}
             </div>
 
             <div className="flex items-center gap-4">
-              <span className="flex items-center gap-2 text-[10px] font-bold text-slate-500 tracking-wide">
-                <Activity size={11} className="text-cyan-500" />
-                Refresh: {formatTime(lastRefresh)}
-              </span>
+              <button 
+                onClick={refreshNow}
+                disabled={loading}
+                className={`flex items-center gap-2 text-[10px] font-bold text-slate-300 tracking-wide px-3 py-1.5 rounded-xl border border-cyan-500/30 transition-all ${loading ? 'bg-cyan-500/10 opacity-50' : 'bg-cyan-500/5 hover:bg-cyan-500/20 hover:border-cyan-500/50'}`}
+              >
+                <Activity size={11} className={loading ? "text-cyan-500 animate-spin" : "text-cyan-500"} />
+                {loading ? 'Refreshing...' : 'Refresh Now'}
+              </button>
 
               {/* Notification Bell */}
               <div className="relative">
@@ -237,7 +225,7 @@ function MainAppContent() {
 
           {/* Page Content */}
           <div className="flex-1 overflow-auto p-4 md:p-6 max-w-[1600px] mx-auto w-full">
-            <AnimatedRoutes lastRefresh={lastRefresh} />
+            <AnimatedRoutes />
           </div>
 
           {/* Bottom HUD Bar */}
@@ -283,7 +271,9 @@ function MainAppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <MainAppContent />
+      <MarketDataProvider>
+        <MainAppContent />
+      </MarketDataProvider>
     </AuthProvider>
   );
 }

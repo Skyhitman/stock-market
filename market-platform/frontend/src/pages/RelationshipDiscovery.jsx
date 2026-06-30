@@ -2,27 +2,17 @@ import React, { useEffect, useState, useRef } from 'react';
 import { GitBranch, Grid3x3, Network } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as d3 from 'd3';
-import { fetchLeaders, fetchCorrelationHeatmap, fetchNetworkGraph } from '../api/client';
+import { useMarketData } from '../context/MarketDataContext';
 import GlassCard from '../components/GlassCard';
 import { HoloLoader, StatusIndicator } from '../components/HUDElements';
 
 const SECTOR_COLORS = { Banking: '#f59e0b', Pharma: '#10b981', IT: '#00f0ff', Energy: '#ef4444' };
 
-export default function RelationshipDiscovery({ lastRefresh }) {
+export default function RelationshipDiscovery() {
+  const { leaders, heatmap, networkGraph: network, loading } = useMarketData();
   const [tab, setTab] = useState('leadlag');
-  const [leaders, setLeaders] = useState([]);
-  const [heatmap, setHeatmap] = useState(null);
-  const [network, setNetwork] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [heatmapEl, setHeatmapEl] = useState(null);
   const [networkEl, setNetworkEl] = useState(null);
-
-  useEffect(() => {
-    Promise.all([fetchLeaders(), fetchCorrelationHeatmap(), fetchNetworkGraph()])
-      .then(([l, h, n]) => {
-        setLeaders(l); setHeatmap(h); setNetwork(n); setLoading(false);
-      }).catch(err => { console.error(err); setLoading(false); });
-  }, [lastRefresh]);
 
   useEffect(() => {
     if (tab === 'heatmap' && heatmap && heatmapEl) {
