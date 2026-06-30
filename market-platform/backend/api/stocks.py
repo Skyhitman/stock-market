@@ -78,21 +78,29 @@ def get_market_screener(db: Session = Depends(get_db)):
     result = []
 
     for stock in stocks:
-        p = db.query(models.DailyPrice).filter(
+        prices = db.query(models.DailyPrice).filter(
             models.DailyPrice.ticker == stock.ticker
-        ).order_by(models.DailyPrice.date.desc()).first()
+        ).order_by(models.DailyPrice.date.desc()).limit(2).all()
         
         f = db.query(models.StockFeature).filter(
             models.StockFeature.ticker == stock.ticker
         ).order_by(models.StockFeature.date.desc()).first()
         
-        if not p:
+        if not prices:
             continue
             
-        open_val = p.open if p.open else 0
+        p = prices[0]
         close_val = p.close if p.close else 0
-        pnl = close_val - open_val
-        ret_pct = (pnl / open_val * 100) if open_val > 0 else 0
+        open_val = p.open if p.open else 0
+        
+        if len(prices) > 1 and prices[1].close:
+            prev_close = prices[1].close
+            pnl = close_val - prev_close
+            ret_pct = (pnl / prev_close * 100) if prev_close > 0 else 0
+        else:
+            # Fallback if no prev day is available
+            pnl = close_val - open_val
+            ret_pct = (pnl / open_val * 100) if open_val > 0 else 0
         
         result.append({
             "ticker": p.ticker,
