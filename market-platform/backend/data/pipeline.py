@@ -429,6 +429,19 @@ def run_full_seed():
     finally:
         db.close()
 
+def get_hist_from_db(db, ticker: str):
+    import pandas as pd
+    prices = db.query(DailyPrice).filter(DailyPrice.ticker == ticker).order_by(DailyPrice.date.asc()).all()
+    if not prices:
+        return pd.DataFrame()
+    data = [{
+        "date": p.date, "open": p.open, "high": p.high, 
+        "low": p.low, "close": p.close, "volume": p.volume
+    } for p in prices]
+    df = pd.DataFrame(data)
+    if not df.empty:
+        df["date"] = pd.to_datetime(df["date"]).dt.date
+    return df
 
 def run_live_update():
     """5-min refresh: fetch fresh latest data, update features & scores."""
@@ -440,7 +453,10 @@ def run_live_update():
 
         # Fresh Nifty data
         nifty_fresh = fetch_fresh_daily(BENCHMARK)
-        nifty_hist = fetch_historical_data(BENCHMARK)
+        nifty_hist = get_hist_from_db(db, BENCHMARK)
+        if nifty_hist.empty:
+            nifty_hist = fetch_historical_data(BENCHMARK)
+            
         if not nifty_hist.empty:
             combined = merge_fresh_data(nifty_hist, nifty_fresh) if not nifty_fresh.empty else nifty_hist
             nf = engineer_features(combined)
@@ -452,7 +468,10 @@ def run_live_update():
             for ticker in tickers:
                 try:
                     fresh = fetch_fresh_daily(ticker)
-                    hist = fetch_historical_data(ticker)
+                    hist = get_hist_from_db(db, ticker)
+                    if hist.empty:
+                        hist = fetch_historical_data(ticker)
+                        
                     if hist.empty:
                         continue
                     combined = merge_fresh_data(hist, fresh) if not fresh.empty else hist
